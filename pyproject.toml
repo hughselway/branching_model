@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "branching-model"
+version = "0.1.0"
+description = ""
+authors = ["Chandler Gatenbee <chandlergatenbee@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+torch = "^2.1.0"
+numpy = "^1.26.1"
+setuptools = "^68.2.2"
+seaborn = "^0.13.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
