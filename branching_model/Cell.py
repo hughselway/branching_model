@@ -154,6 +154,5 @@ class Cell(object):
         treatment_effect = torch.sum(susceptibility[WT_IDX+1:]*doses) # minimize this
         cost_of_resistance = sum(pheno[WT_IDX+1:]) # minimize this. Should select for susceptible when no drug
         fitness = RESISTANCE_B*treatment_effect + RESISTANCE_C*cost_of_resistance
-
         return fitness
 
