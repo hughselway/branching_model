@@ -239,8 +239,16 @@ class Agent(object):
 
         return fitness
 
-    def calc_growth_rate(self, pheno: torch.Tensor, doses: torch.Tensor) -> float:
-        return 1 - 2 * float(self.calc_loss(pheno, doses))
+    def calc_growth_rate(
+        self,
+        pheno: torch.Tensor,
+        doses: torch.Tensor,
+        resistance_cost: float,
+        resistance_benefit: float,
+    ) -> float:
+        return 1 - 2 * float(
+            self.calc_loss(pheno, doses, resistance_cost, resistance_benefit)
+        )
 
     def update_cell_count(self, randomiser: np.random.RandomState) -> list["Agent"]:
         """
