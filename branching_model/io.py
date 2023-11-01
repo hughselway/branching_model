@@ -24,9 +24,10 @@ ROOT_PARENT_ID = -1
 
 class Recorder(object):
     def __init__(self):
-        self.size_df = None
-        self.mutation_df = None
-        self.phenotype_df = None
+        # self.size_df = None
+        # self.mutation_df = None
+        # self.phenotype_df = None
+        self.df = None
 
     def record_time_pt(self, tree, time_pt):
         sizes = {agent.id:0 for agent in tree.agents}
@@ -51,27 +52,36 @@ class Recorder(object):
         phenotypes = np.vstack([phenotypes[idx] for idx in agent_ids])
         phenotype_cols = ["S", *[f"R{i}" for i in range(1, phenotypes.shape[1])]]
         _pheno_df = pd.DataFrame(phenotypes, columns=phenotype_cols)
-        time_pheno_df = pd.DataFrame({TIME_COL: time_pt,
-                                ID_COL:agent_ids,
-                                PARENT_ID_COL:[edge_dict[idx] for idx in agent_ids]
+        # time_pheno_df = pd.DataFrame({TIME_COL: time_pt,
+        #                         ID_COL:agent_ids,
+        #                         PARENT_ID_COL:[edge_dict[idx] for idx in agent_ids]
+        #                         }).join(_pheno_df)
+
+
+        # time_size_df = pd.DataFrame({TIME_COL: time_pt,
+        #                         ID_COL:agent_ids,
+        #                         PARENT_ID_COL:[edge_dict[idx] for idx in agent_ids],
+        #                         SIZE_COL:[sizes[idx] for idx in agent_ids]
+        #                         })
+
+        # time_mutation_df = pd.DataFrame({TIME_COL: time_pt,
+        #                 ID_COL:agent_ids,
+        #                 PARENT_ID_COL:[edge_dict[idx] for idx in agent_ids],
+        #                 MUTATION_SIZE_COL:[mutation_sizes[idx] for idx in agent_ids]
+
+        #                 })
+
+        time_pt_df = pd.DataFrame({TIME_COL: time_pt,
+                                   ID_COL:agent_ids,
+                                   PARENT_ID_COL:[edge_dict[idx] for idx in agent_ids],
+                                   SIZE_COL:[sizes[idx] for idx in agent_ids],
+                                   MUTATION_SIZE_COL:[mutation_sizes[idx] for idx in agent_ids]
                                 }).join(_pheno_df)
 
-
-        time_size_df = pd.DataFrame({TIME_COL: time_pt,
-                                ID_COL:agent_ids,
-                                PARENT_ID_COL:[edge_dict[idx] for idx in agent_ids],
-                                SIZE_COL:[sizes[idx] for idx in agent_ids]
-                                })
-
-        time_mutation_df = pd.DataFrame({TIME_COL: time_pt,
-                        ID_COL:agent_ids,
-                        PARENT_ID_COL:[edge_dict[idx] for idx in agent_ids],
-                        MUTATION_SIZE_COL:[mutation_sizes[idx] for idx in agent_ids]
-                        })
-
-        self.size_df = self.update_df(self.size_df, time_size_df)
-        self.mutation_df = self.update_df(self.mutation_df, time_mutation_df)
-        self.phenotype_df = self.update_df(self.phenotype_df, time_pheno_df)
+        self.df = self.update_df(self.df, time_pt_df)
+        # self.size_df = self.update_df(self.size_df, time_size_df)
+        # self.mutation_df = self.update_df(self.mutation_df, time_mutation_df)
+        # self.phenotype_df = self.update_df(self.phenotype_df, time_pheno_df)
 
         # return size_df, mutation_df, pheno_df
     def update_df(self, df1, df2):
@@ -86,16 +96,19 @@ class Recorder(object):
 
         return new_df
 
-    def write_csv(self, dst_dir, prefix=""):
+    def write_csv(self, fout):
+        dst_dir = os.path.split(fout)[0]
         pathlib.Path(dst_dir).mkdir(exist_ok=True, parents=True)
-        size_out = os.path.join(dst_dir, f"{prefix}_{SIZE_COL}.csv").replace(f"{os.sep}_", os.sep)
-        self.size_df.to_csv(size_out, index=False)
+        self.df.to_csv(fout, index=False)
+        # size_out = os.path.join(dst_dir, f"{prefix".csv").replace(f"{os.sep}_", os.sep)
+        # size_out = os.path.join(dst_dir, f"{prefix}_{SIZE_COL}.csv").replace(f"{os.sep}_", os.sep)
+        # self.size_df.to_csv(size_out, index=False)
 
-        mutation_out = os.path.join(dst_dir, f"{prefix}_{MUTATION_SIZE_COL}.csv").replace(f"{os.sep}_", os.sep)
-        self.mutation_df.to_csv(mutation_out, index=False)
+        # mutation_out = os.path.join(dst_dir, f"{prefix}_{MUTATION_SIZE_COL}.csv").replace(f"{os.sep}_", os.sep)
+        # self.mutation_df.to_csv(mutation_out, index=False)
 
-        pheno_out = os.path.join(dst_dir, f"{prefix}_{PHENO_COL}.csv").replace(f"{os.sep}_", os.sep)
-        self.phenotype_df.to_csv(pheno_out, index=False)
+        # pheno_out = os.path.join(dst_dir, f"{prefix}_{PHENO_COL}.csv").replace(f"{os.sep}_", os.sep)
+        # self.phenotype_df.to_csv(pheno_out, index=False)
 
 
 if __name__ == "__main__":
@@ -145,6 +158,6 @@ if __name__ == "__main__":
 
 
     tree, recorder = generate_tree()
-    dst_dir = os.path.join(os.getcwd(), "tests/csv_files")
-    recorder.write_csv(dst_dir)
+    out_f = os.path.join(os.getcwd(), "tests/csv_files/results.csv")
+    recorder.write_csv(out_f)
 
