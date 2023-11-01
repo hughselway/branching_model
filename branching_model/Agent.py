@@ -306,7 +306,7 @@ class Agent(object):
         )
         self.n_cells += division_count - death_count - mutating_division_count
         for i in range(mutating_division_count):
-            new_clones.append(self.mutate(randomiser, next_id + i))
+            new_clones.append(self.copy_mutated(randomiser, next_id + i))
         return new_clones
 
     def copy(self, new_id: int) -> "Agent":
@@ -326,7 +326,6 @@ class Agent(object):
         new_agent.model.load_state_dict(deepcopy(self.model.state_dict()))
         # print("Not inheriting optimizer")
         new_agent.model.optimizer.load_state_dict(deepcopy(self.model.optimizer.state_dict()))
-
         return new_agent
 
     def copy_mutated(self, randomiser: npr.RandomState, new_id: int) -> "Agent":

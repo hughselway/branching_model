@@ -128,13 +128,13 @@ class Phylogeny(object):
                     self.alive_ids.remove(alive_id)
                 elif agent.divides(self.randomiser, growth_rate):
                     new_agent = agent.copy(new_id=len(self.agents))
-                    mutate = np.random.binomial(1, Agent.CLONE_MUTATION_RATE) == 1
+                    mutate = self.randomiser.random() < self.mutations_per_division
                     if mutate:
                         new_agent.mutate()
 
                     self.agents.append(new_agent)
                     self.parent_ids.append(alive_id)
-                    self.alive_ids.append(agent_copy.id)
+                    self.alive_ids.append(new_agent.id)
         if timestep % 10 == 0:
             print(f"growth rates: {np.mean(growth_rates)} ± {np.std(growth_rates)}")
         # log results
