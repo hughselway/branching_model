@@ -1,5 +1,6 @@
 from copy import deepcopy
 import numpy as np
+import numpy.random as npr
 from torch import nn
 import torch
 import seaborn as sns
@@ -250,13 +251,36 @@ class Agent(object):
             self.calc_loss(pheno, doses, resistance_cost, resistance_benefit)
         )
 
-    def update_cell_count(self, randomiser: np.random.RandomState) -> list["Agent"]:
+    def update_cell_count(
+        self,
+        randomiser: npr.RandomState,
+        growth_rate: float,
+        mutations_per_division: float,
+        next_id: int,
+    ) -> list["Agent"]:
         """
         update number of cells according to current fitness
         returns list of new clones resulting from mutations (if any)
         """
         assert self.status == "clone"
-        raise NotImplementedError
+        new_clones = []  # any divisions that have a mutation result in a new clone
+        division_count = (
+            0 if growth_rate < 0 else randomiser.binomial(self.n_cells, growth_rate)
+        )
+        mutating_division_count = randomiser.binomial(
+            division_count, mutations_per_division
+        )
+        death_count = (
+            0
+            if growth_rate > 0
+            else randomiser.binomial(
+                self.n_cells + division_count - mutating_division_count, -growth_rate
+            )
+        )
+        self.n_cells += division_count - death_count - mutating_division_count
+        for i in range(mutating_division_count):
+            new_clones.append(self.mutate(randomiser, next_id + i))
+        return new_clones
 
     def copy(self, new_id: int) -> "Agent":
         """
@@ -275,32 +299,31 @@ class Agent(object):
         new_agent.model.load_state_dict(deepcopy(self.model.state_dict()))
         return new_agent
 
-    def dies(
-        self,
-        randomiser: np.random.RandomState,
-        growth_rate: float,
-        baseline_growth_rate: float,
-    ) -> bool:
+    def mutate(self, randomiser: npr.RandomState, new_id: int) -> "Agent":
+        """
+        returns a mutated copy of the agent, with a new id and deepcopied model
+        """
+        new_agent = self.copy(new_id)
+        new_agent.n_cells = 1
+        # TODO: add mutation here
+        return new_agent
+
+    def dies(self, randomiser: npr.RandomState, growth_rate: float) -> bool:
         """
         randomly decide if the cell dies
         """
         if growth_rate > 0:
             return False
-        if randomiser.uniform() < growth_rate + baseline_growth_rate:
+        if randomiser.uniform() < growth_rate:
             return True
         return False
 
-    def divides(
-        self,
-        randomiser: np.random.RandomState,
-        growth_rate: float,
-        baseline_growth_rate: float,
-    ) -> bool:
+    def divides(self, randomiser: npr.RandomState, growth_rate: float) -> bool:
         """
         randomly decide if the cell divides
         """
         if growth_rate < 0:
             return False
-        if randomiser.uniform() * baseline_growth_rate > growth_rate:
+        if randomiser.random() < abs(growth_rate):
             return True
         return False

@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.random as npr
 import os
 import torch
 from torch import nn
@@ -19,6 +20,7 @@ class Phylogeny(object):
         resistance_cost: float = 0.3,
         resistance_benefit: float = 1.0,
         network_updates_per_timepoint: int = 1,
+        mutations_per_division: float = 0.01,
     ):
         self.is_cell = is_cell
         self.learning_rate = learning_rate
@@ -39,11 +41,22 @@ class Phylogeny(object):
         self.agents = [first_agent]
         self.alive_ids: list[int] = [0]
         self.parent_ids: list[int | None] = [None]
-        self.randomiser = np.random.RandomState(seed)
+        self.randomiser = npr.RandomState(seed)
         self.baseline_growth_rate = baseline_growth_rate
         self.resistance_cost = resistance_cost
         self.resistance_benefit = resistance_benefit
         self.network_updates_per_timepoint = network_updates_per_timepoint
+        self.mutations_per_division = mutations_per_division
+
+    @property
+    def next_id(self):
+        return len(self.parent_ids)
+
+    @property
+    def current_cell_count(self):
+        if self.is_cell:
+            return len(self.alive_ids)
+        return sum(agent.n_cells for agent in self.agents)
 
     def run_simulation(
         self,
@@ -54,13 +67,13 @@ class Phylogeny(object):
         with open("logs/cell_counts.csv", "w", encoding="utf-8") as f:
             f.write("timestep,cell_count\n")
         with open("logs/cell_phenotypes.csv", "w", encoding="utf-8") as f:
-            f.write("timestep,cell_id,susceptible,resistant_0,resistant_1\n")
+            f.write("timestep,agent_id,n_cells,susceptible,resistant_0,resistant_1\n")
         timestep = 0
-        while len(self.agents) < detection_cell_count:
+        while self.current_cell_count < detection_cell_count:
             self.advance_one_timestep(timestep, treatment=None)
             timestep += 1
         print(
-            f"Detected {len(self.agents)} cells at timestep {timestep}, running treatment 0"
+            f"Detected {self.current_cell_count} cells at timestep {timestep}, running treatment 0"
         )
         for treatment in range(2):
             for i in range(n_timesteps_treatment):
@@ -81,42 +94,48 @@ class Phylogeny(object):
 
     def advance_one_timestep(self, timestep: int, treatment: int | None = None):
         growth_rates = []
-        for alive_cell_id in self.alive_ids:
-            agent = self.agents[alive_cell_id]
+        for alive_id in self.alive_ids:
+            agent = self.agents[alive_id]
             doses = get_doses_from_treatment(treatment)
             for _ in range(self.network_updates_per_timepoint):
                 agent.update_phenotype(doses)
+            relative_growth_rate = agent.calc_growth_rate(
+                agent.phenotype,
+                doses,
+                self.resistance_cost,
+                self.resistance_benefit,
+            )
+            growth_rate = self.baseline_growth_rate * relative_growth_rate
+            growth_rates.append(growth_rate)
             if not self.is_cell:
-                new_clones = agent.update_cell_count(self.randomiser)
-                self.agents.extend(new_clones)
-                self.parent_ids.extend([alive_cell_id] * len(new_clones))
-            else:
-                relative_growth_rate = agent.calc_growth_rate(
-                    agent.phenotype,
-                    doses,
-                    self.resistance_cost,
-                    self.resistance_benefit,
+                new_clones = agent.update_cell_count(
+                    self.randomiser,
+                    growth_rate,
+                    self.mutations_per_division,
+                    len(self.parent_ids),
                 )
-                growth_rate = self.baseline_growth_rate * relative_growth_rate
-                growth_rates.append(growth_rate)
-                if agent.dies(self.randomiser, growth_rate, self.baseline_growth_rate):
-                    self.alive_ids.remove(alive_cell_id)
-                elif agent.divides(
-                    self.randomiser, growth_rate, self.baseline_growth_rate
-                ):
+                self.agents.extend(new_clones)
+                self.parent_ids.extend([alive_id] * len(new_clones))
+                self.alive_ids.extend([clone.id for clone in new_clones])
+
+            else:
+                if agent.dies(self.randomiser, growth_rate):
+                    self.alive_ids.remove(alive_id)
+                elif agent.divides(self.randomiser, growth_rate):
                     agent_copy = agent.copy(new_id=len(self.agents))
                     self.agents.append(agent_copy)
-                    self.parent_ids.append(alive_cell_id)
+                    self.parent_ids.append(alive_id)
                     self.alive_ids.append(agent_copy.id)
-        print(f"growth rates: {np.mean(growth_rates)} ± {np.std(growth_rates)}")
+        if timestep % 10 == 0:
+            print(f"growth rates: {np.mean(growth_rates)} ± {np.std(growth_rates)}")
         # log results
         # if timestep % 10 == 0:
         with open("logs/cell_counts.csv", "a", encoding="utf-8") as f:
-            f.write(f"{timestep},{len(self.alive_ids)}\n")
+            f.write(f"{timestep},{self.current_cell_count}\n")
         with open("logs/cell_phenotypes.csv", "a", encoding="utf-8") as f:
             for agent in self.agents:
                 f.write(
-                    f"{timestep},{agent.id},{agent.phenotype[0]},{agent.phenotype[1]},"
+                    f"{timestep},{agent.id},{agent.n_cells},{agent.phenotype[0]},{agent.phenotype[1]},"
                     f"{agent.phenotype[2]}\n"
                 )
 
