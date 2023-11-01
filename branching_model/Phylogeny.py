@@ -65,9 +65,12 @@ class Phylogeny(object):
     ):
         os.makedirs("logs", exist_ok=True)
         with open("logs/cell_counts.csv", "w", encoding="utf-8") as f:
-            f.write("timestep,cell_count\n")
+            f.write("timestep,cell_count,agent_count\n")
         with open("logs/cell_phenotypes.csv", "w", encoding="utf-8") as f:
             f.write("timestep,agent_id,n_cells,susceptible,resistant_0,resistant_1\n")
+        if not self.is_cell:
+            with open("logs/tree_structure.csv", "w", encoding="utf-8") as f:
+                f.write("timestep,agent_id,parent_id,n_cells\n")
         timestep = 0
         while self.current_cell_count < detection_cell_count:
             self.advance_one_timestep(timestep, treatment=None)
@@ -96,6 +99,7 @@ class Phylogeny(object):
         growth_rates = []
         for alive_id in self.alive_ids:
             agent = self.agents[alive_id]
+            assert agent is not None
             doses = get_doses_from_treatment(treatment)
             for _ in range(self.network_updates_per_timepoint):
                 agent.update_phenotype(doses)
@@ -117,7 +121,8 @@ class Phylogeny(object):
                 self.agents.extend(new_clones)
                 self.parent_ids.extend([alive_id] * len(new_clones))
                 self.alive_ids.extend([clone.id for clone in new_clones])
-
+                if agent.n_cells == 0:
+                    self.alive_ids.remove(alive_id)
             else:
                 if agent.dies(self.randomiser, growth_rate):
                     self.alive_ids.remove(alive_id)
@@ -131,13 +136,27 @@ class Phylogeny(object):
         # log results
         # if timestep % 10 == 0:
         with open("logs/cell_counts.csv", "a", encoding="utf-8") as f:
-            f.write(f"{timestep},{self.current_cell_count}\n")
+            f.write(f"{timestep},{self.current_cell_count},{len(self.alive_ids)}\n")
         with open("logs/cell_phenotypes.csv", "a", encoding="utf-8") as f:
-            for agent in self.agents:
+            for agent_id in self.alive_ids:
+                agent = self.agents[agent_id]
                 f.write(
                     f"{timestep},{agent.id},{agent.n_cells},{agent.phenotype[0]},{agent.phenotype[1]},"
                     f"{agent.phenotype[2]}\n"
                 )
+        if not self.is_cell:
+            with open("logs/tree_structure.csv", "a", encoding="utf-8") as f:
+                for agent_id in self.alive_ids:
+                    agent = self.agents[agent_id]
+                    assert (
+                        agent.parent is None and self.parent_ids[agent_id] is None
+                    ) or (
+                        agent.parent is not None
+                        and self.parent_ids[agent_id] == agent.parent.id
+                    )
+                    f.write(
+                        f"{timestep},{agent.id},{agent.parent.id if agent.parent is not None else None},{agent.n_cells}\n"
+                    )
 
 
 def get_doses_from_treatment(treatment: int | None):
