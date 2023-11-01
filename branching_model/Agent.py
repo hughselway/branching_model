@@ -16,9 +16,6 @@ FUNNEL_S = 0.5
 
 WT_IDX = 0
 
-RESISTANCE_C = 0.1
-RESISTANCE_B = 1
-
 
 class NN(nn.Module):
     def __init__(
@@ -216,7 +213,13 @@ class Agent(object):
 
         self.phenotype = new_pheno
 
-    def calc_loss(self, pheno: torch.Tensor, doses: torch.Tensor) -> torch.Tensor:
+    def calc_loss(
+        self,
+        pheno: torch.Tensor,
+        doses: torch.Tensor,
+        resistance_cost: float = 0.3,
+        resistance_benefit: float = 1,
+    ) -> torch.Tensor:
         """
         minimize cost of treatment
         pheno: tensor
@@ -230,7 +233,9 @@ class Agent(object):
         cost_of_resistance = torch.sum(
             pheno[WT_IDX + 1 :]
         )  # minimize this. Should select for susceptible when no drug
-        fitness = RESISTANCE_B * treatment_effect + RESISTANCE_C * cost_of_resistance
+        fitness = (
+            resistance_benefit * treatment_effect + resistance_cost * cost_of_resistance
+        )
 
         return fitness
 
@@ -262,22 +267,32 @@ class Agent(object):
         new_agent.model.load_state_dict(deepcopy(self.model.state_dict()))
         return new_agent
 
-    def dies(self, randomiser: np.random.RandomState, growth_rate: float) -> bool:
+    def dies(
+        self,
+        randomiser: np.random.RandomState,
+        growth_rate: float,
+        baseline_growth_rate: float,
+    ) -> bool:
         """
         randomly decide if the cell dies
         """
         if growth_rate > 0:
             return False
-        if randomiser.uniform() < growth_rate + 1:
+        if randomiser.uniform() < growth_rate + baseline_growth_rate:
             return True
         return False
 
-    def divides(self, randomiser: np.random.RandomState, growth_rate: float) -> bool:
+    def divides(
+        self,
+        randomiser: np.random.RandomState,
+        growth_rate: float,
+        baseline_growth_rate: float,
+    ) -> bool:
         """
         randomly decide if the cell divides
         """
         if growth_rate < 0:
             return False
-        if randomiser.uniform() > growth_rate:
+        if randomiser.uniform() * baseline_growth_rate > growth_rate:
             return True
         return False
