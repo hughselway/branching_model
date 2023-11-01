@@ -1,3 +1,5 @@
 branching_model/__pycache__/
 logs/
 .mypy_cache/
+
+tests/.DS_Store
