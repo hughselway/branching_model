@@ -18,6 +18,7 @@ WT_IDX = 0
 RESISTANCE_C = 0.1
 RESISTANCE_B = 1
 
+MAX_GROWTH_RATE = 0.2
 
 class NN(nn.Module):
     def __init__(self, n_features, n_hidden_units, n_layers, n_cls, funnel_s, activation_fxn, loss_fxn, optimizer_cls, optimizer_init_kwargs, device=None):
@@ -143,16 +144,40 @@ class Cell(object):
 
         self.phenotype = new_pheno
 
-    def calc_loss(self, pheno, doses):
+    def calc_fitness(self, pheno, doses):
         """
         minimize cost of treatment
         pheno: tensor
             Degree of resistance to each treatement. First value is for susceptible to all
         """
 
-        susceptibility = (1-pheno)/torch.sum(1-pheno) #0-1
-        treatment_effect = torch.sum(susceptibility[WT_IDX+1:]*doses) # minimize this
-        cost_of_resistance = sum(pheno[WT_IDX+1:]) # minimize this. Should select for susceptible when no drug
-        fitness = RESISTANCE_B*treatment_effect + RESISTANCE_C*cost_of_resistance
+        susceptibility = (1-pheno)/torch.sum(1-pheno)  # 0-1
+        treatment_effect = torch.sum(susceptibility[WT_IDX+1:]*doses)  # minimize this
+        cost_of_resistance = torch.sum(pheno[WT_IDX+1:])  # minimize this. Should select for susceptible when no drug
+        fitness = -(RESISTANCE_B*treatment_effect + RESISTANCE_C*cost_of_resistance) # 0-1, lower = more fit
+
         return fitness
+
+    # def calc_fitness(self, pheno, doses):
+    #     protection = 1 - torch.sum(pheno[WT_IDX+1:]*doses)
+    #     cost_of_resistance = torch.sum(pheno[WT_IDX+1:])  # minimize this. Should select for susceptible when no drug
+    #     fitness = RESISTANCE_B*protection - RESISTANCE_C*cost_of_resistance
+
+    #     return fitness
+
+
+    def calc_loss(self, pheno, doses):
+        """
+        minimize cost of treatment
+        pheno: tensor
+            Degree of resistance to each treatement. First value is for susceptible to all
+        """
+        fitness = self.calc_fitness(pheno, doses)
+
+        return -fitness
+
+    def grow(self, doses):
+
+        pass
+
 
