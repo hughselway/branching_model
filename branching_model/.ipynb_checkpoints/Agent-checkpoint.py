@@ -1,14 +1,10 @@
 from copy import deepcopy
-from networkx import ring_of_cliques
 import numpy as np
-from sympy import N
 from torch import nn
 import torch
 import seaborn as sns
 import pandas as pd
 import matplotlib.pyplot as plt
-from typing import Optional
-
 
 # Related to the network
 N_LAYERS = 3
@@ -167,11 +163,9 @@ class Agent(object):
         learning_rate: float = 1 * (10**-3),
         optimizer_cls: type = torch.optim.SGD,
         activation_fxn: nn.Module = nn.ReLU(),
-        model_params: Optional[dict] = None,
-        # model_params: dict | None = None,
+        model_params: dict | None = None,
         parent: "Agent | None" = None,
-        n_cells: Optional[int] = None,
-        # n_cells: int | None = None,
+        n_cells: int | None = None,
     ):
         """
 
@@ -289,13 +283,8 @@ class Agent(object):
             return True
         return False
     
-    def clone(self, new_cells, new_mutants, n_killed, new_size):
-        div_rate = self.div_rate
-        new_cells = *N
-        new_mutants = mu_rate*r*N
-        n_killed = drug1*N*(1-res_1)-drug_2*N*(1-res_2)
-        new_size = current_size + new_cells - new_mutants - n_killed
-
+    # def create_new_clone(self, new_cells, new_mutants, n_killed, new_size):
+    #     new_cells = 
 
 
 
