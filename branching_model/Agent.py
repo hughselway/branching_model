@@ -1,3 +1,4 @@
+from copy import deepcopy
 import numpy as np
 from torch import nn
 import torch
@@ -162,7 +163,7 @@ class Agent(object):
         optimizer_cls: type = torch.optim.SGD,
         activation_fxn: nn.Module = nn.ReLU(),
         model_params: dict | None = None,
-        parent=None,
+        parent: "Agent | None" = None,
         n_cells: int | None = None,
     ):
         """
@@ -226,21 +227,57 @@ class Agent(object):
         treatment_effect = torch.sum(
             susceptibility[WT_IDX + 1 :] * doses
         )  # minimize this
-        cost_of_resistance = sum(
+        cost_of_resistance = torch.sum(
             pheno[WT_IDX + 1 :]
         )  # minimize this. Should select for susceptible when no drug
         fitness = RESISTANCE_B * treatment_effect + RESISTANCE_C * cost_of_resistance
 
         return fitness
 
-    def calc_growth_rate(
-        self, pheno: torch.Tensor, doses: torch.Tensor
-    ) -> torch.Tensor:
-        return 1 - 2 * self.calc_loss(pheno, doses)
+    def calc_growth_rate(self, pheno: torch.Tensor, doses: torch.Tensor) -> float:
+        return 1 - 2 * float(self.calc_loss(pheno, doses))
 
-    def update_cell_count(self):
+    def update_cell_count(self, randomiser: np.random.RandomState) -> list["Agent"]:
         """
         update number of cells according to current fitness
+        returns list of new clones resulting from mutations (if any)
         """
         assert self.status == "clone"
         raise NotImplementedError
+
+    def copy(self, new_id: int) -> "Agent":
+        """
+        returns a copy of the agent, with a new id and deepcopied model
+        """
+        new_agent = Agent(
+            is_cell=self.status == "cell",
+            id=new_id,
+            learning_rate=self.model.optimizer.param_groups[0]["lr"],
+            optimizer_cls=type(self.model.optimizer),
+            activation_fxn=self.model.activation_fxn,
+            model_params=None,
+            parent=self,
+            n_cells=None if self.status == "cell" else self.n_cells,
+        )
+        new_agent.model.load_state_dict(deepcopy(self.model.state_dict()))
+        return new_agent
+
+    def dies(self, randomiser: np.random.RandomState, growth_rate: float) -> bool:
+        """
+        randomly decide if the cell dies
+        """
+        if growth_rate > 0:
+            return False
+        if randomiser.uniform() < growth_rate + 1:
+            return True
+        return False
+
+    def divides(self, randomiser: np.random.RandomState, growth_rate: float) -> bool:
+        """
+        randomly decide if the cell divides
+        """
+        if growth_rate < 0:
+            return False
+        if randomiser.uniform() > growth_rate:
+            return True
+        return False
