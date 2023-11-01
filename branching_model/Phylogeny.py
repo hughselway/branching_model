@@ -5,8 +5,10 @@ import torch
 from torch import nn
 
 from branching_model.Agent import Agent
+from branching_model.io import Recorder
 
 
+RECORD_FREQ = 1 # Record interval
 class Phylogeny(object):
     def __init__(
         self,
@@ -27,6 +29,9 @@ class Phylogeny(object):
         self.optimizer_cls = optimizer_cls
         self.activation_fxn = activation_fxn
         self.model_params = model_params
+
+        self.time = 0
+        self.live_agent_recorder = Recorder()
 
         first_agent = Agent(
             is_cell=is_cell,
@@ -96,6 +101,12 @@ class Phylogeny(object):
             print(f"Ran treatment {treatment} for {n_timesteps_treatment} timesteps")
 
     def advance_one_timestep(self, timestep: int, treatment: int | None = None):
+        
+        if self.time % RECORD_FREQ == 0:
+            self.live_agent_recorder.record_time_pt(self.agents)
+
+        self.time += 1
+
         growth_rates = []
         for alive_id in self.alive_ids:
             agent = self.agents[alive_id]
