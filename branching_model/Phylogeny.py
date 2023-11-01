@@ -24,7 +24,7 @@ class Phylogeny(object):
         self.model_params = model_params
 
         self.time = 0
-        self.recorder = Recorder()
+        self.live_agent_recorder = Recorder()
 
         first_agent = Agent(
             is_cell=is_cell,
@@ -44,7 +44,7 @@ class Phylogeny(object):
     def advance_one_timestep(self, treatment: int | None = None):
 
         if self.time % RECORD_FREQ == 0:
-            self.recorder.record_time_pt(self)
+            self.live_agent_recorder.record_time_pt(self.agents)
 
         self.time += 1
         for alive_cell_id in self.alive_ids:

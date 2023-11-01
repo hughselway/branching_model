@@ -29,15 +29,15 @@ class Recorder(object):
         # self.phenotype_df = None
         self.df = None
 
-    def record_time_pt(self, tree, time_pt):
-        sizes = {agent.id:0 for agent in tree.agents}
-        mutation_sizes = {agent.id:0 for agent in tree.agents}
-        phenotypes = {agent.id:None for agent in tree.agents}
+    def record_time_pt(self, agent_list, time_pt):
+        sizes = {agent.id:0 for agent in agent_list}
+        mutation_sizes = {agent.id:0 for agent in agent_list}
+        phenotypes = {agent.id:None for agent in agent_list}
 
-        agent_ids = [agent.id for agent in tree.agents]
+        agent_ids = [agent.id for agent in agent_list]
         edge_dict = {agent.id: agent.parent.id if agent.parent is not None else ROOT_PARENT_ID for agent in tree.agents}
 
-        for agent in tree.agents:
+        for agent in agent_list:
             agent.phenotype
             size = 1 if agent.status == "cell" else agent.n_cells
             mutation_sizes[agent.id] += size
@@ -100,6 +100,8 @@ class Recorder(object):
         dst_dir = os.path.split(fout)[0]
         pathlib.Path(dst_dir).mkdir(exist_ok=True, parents=True)
         self.df.to_csv(fout, index=False)
+
+
         # size_out = os.path.join(dst_dir, f"{prefix".csv").replace(f"{os.sep}_", os.sep)
         # size_out = os.path.join(dst_dir, f"{prefix}_{SIZE_COL}.csv").replace(f"{os.sep}_", os.sep)
         # self.size_df.to_csv(size_out, index=False)
@@ -110,6 +112,17 @@ class Recorder(object):
         # pheno_out = os.path.join(dst_dir, f"{prefix}_{PHENO_COL}.csv").replace(f"{os.sep}_", os.sep)
         # self.phenotype_df.to_csv(pheno_out, index=False)
 
+    def long_to_wide(self, cname):
+        # cname = MUTATION_SIZE_COL
+        info_cols = [ID_COL, PARENT_ID_COL]
+        info_df = self.df[info_cols].drop_duplicates()
+
+        long_df = self.df[[ID_COL, TIME_COL, cname]]
+        wide_df = long_df.pivot(index=ID_COL, columns=TIME_COL, values=cname)
+        wide_df.fillna(0, inplace=True)
+        wide_df = info_df.merge(wide_df, on=ID_COL)
+
+        return wide_df
 
 if __name__ == "__main__":
     def generate_tree(n_agents=10):
@@ -124,7 +137,7 @@ if __name__ == "__main__":
         doses = torch.zeros(Agent.N_TREATMENTS).reshape(1, -1)
         time = 0
         while n_created < n_agents:
-            recorder.record_time_pt(tree, time)
+            recorder.record_time_pt(tree.agents, time)
             for cell in tree.agents:
                 cell.update_phenotype(doses)
                 p = cell.calc_growth_rate(cell.phenotype, doses)
@@ -160,4 +173,3 @@ if __name__ == "__main__":
     tree, recorder = generate_tree()
     out_f = os.path.join(os.getcwd(), "tests/csv_files/results.csv")
     recorder.write_csv(out_f)
-
