@@ -7,13 +7,12 @@ import os
 import pathlib
 import matplotlib.pyplot as plt
 
-from branching_model import Cell
+from branching_model import Agent
 import importlib
-importlib.reload(Cell)
+importlib.reload(Agent)
 
 def test_adaptation(doses, plot_title, plot_f, n_steps=100, learning_rate=10**-1):
-    cell = Cell.Cell(0, learning_rate=learning_rate)
-    cell.model
+    cell = Agent.Agent(id=0, is_cell=True, learning_rate=learning_rate)
     phenotypes = [None] * n_steps
     for i in range(n_steps):
         cell.update_phenotype(doses)

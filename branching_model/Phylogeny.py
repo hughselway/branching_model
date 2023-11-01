@@ -50,8 +50,12 @@ class Phylogeny(object):
                 if agent.dies(self.randomiser, growth_rate):
                     self.alive_ids.remove(alive_cell_id)
                 elif agent.divides(self.randomiser, growth_rate):
-                    agent_copy = agent.copy(new_id=len(self.agents))
-                    self.agents.append(agent_copy)
+                    new_agent = agent.copy(new_id=len(self.agents))
+                    mutate = np.random.binomial(1, Agent.CLONE_MUTATION_RATE) == 1
+                    if mutate:
+                        new_agent.mutate()
+
+                    self.agents.append(new_agent)
                     self.parent_ids.append(alive_cell_id)
 
 
