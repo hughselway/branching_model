@@ -233,4 +233,4 @@ if __name__ == "__main__":
     recorder, agent_list = generate_tree()
     self = recorder
     dst_dir = os.path.join(os.getcwd(), "tests/csv_files")
-    recorder.write_csv(dst_dir)
+    recorder.write_csv(dst_dir, prefix="live")
