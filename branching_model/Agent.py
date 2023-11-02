@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from scipy import stats
 # Related to the network
 N_LAYERS = 3
-N_TREATMENTS = 2
+N_TREATMENTS = 3
 N_IN = N_TREATMENTS
 N_OUT = N_TREATMENTS + 1
 N_HIDDEN_NEURONS = 2 * (N_OUT)
@@ -245,11 +245,11 @@ class Agent(object):
         treatment_effect = torch.sum(
             susceptibility[WT_IDX + 1 :] * doses
         )  # minimize this
-        cost_of_resistance = torch.sum(
+        total_resistance = torch.sum(
             pheno[WT_IDX + 1 :]
         )  # minimize this. Should select for susceptible when no drug
         fitness = (
-            resistance_benefit * treatment_effect + resistance_cost * cost_of_resistance
+            resistance_benefit * treatment_effect + resistance_cost * total_resistance
         )
 
         return fitness

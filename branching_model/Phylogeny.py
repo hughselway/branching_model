@@ -8,7 +8,9 @@ from branching_model.Agent import Agent
 from branching_model.io import Recorder
 
 
-RECORD_FREQ = 1 # Record interval
+RECORD_FREQ = 1  # Record interval
+
+
 class Phylogeny(object):
     def __init__(
         self,
@@ -23,6 +25,7 @@ class Phylogeny(object):
         resistance_benefit: float = 1.0,
         network_updates_per_timepoint: int = 1,
         mutations_per_division: float = 0.01,
+        number_of_treatments: int = 2,
     ):
         self.is_cell = is_cell
         self.learning_rate = learning_rate
@@ -52,6 +55,7 @@ class Phylogeny(object):
         self.resistance_benefit = resistance_benefit
         self.network_updates_per_timepoint = network_updates_per_timepoint
         self.mutations_per_division = mutations_per_division
+        self.number_of_treatments = number_of_treatments
 
     @property
     def next_id(self):
@@ -67,43 +71,55 @@ class Phylogeny(object):
         self,
         detection_cell_count: int = 1000,
         n_timesteps_treatment: int = 20,
+        max_cycles: int = 1,
     ):
         os.makedirs("logs", exist_ok=True)
         with open("logs/cell_counts.csv", "w", encoding="utf-8") as f:
             f.write("timestep,cell_count,agent_count\n")
         with open("logs/cell_phenotypes.csv", "w", encoding="utf-8") as f:
-            f.write("timestep,agent_id,n_cells,susceptible,resistant_0,resistant_1\n")
+            f.write(
+                "timestep,agent_id,n_cells,susceptible,"
+                + ",".join([f"R{i}" for i in range(1, self.number_of_treatments + 1)])
+                + "\n"
+            )
         if not self.is_cell:
             with open("logs/tree_structure.csv", "w", encoding="utf-8") as f:
                 f.write("timestep,agent_id,parent_id,n_cells\n")
-        timestep = 0
         while self.current_cell_count < detection_cell_count:
-            self.advance_one_timestep(timestep, treatment=None)
-            timestep += 1
+            self.advance_one_timestep(treatment=None)
         print(
-            f"Detected {self.current_cell_count} cells at timestep {timestep}, running treatment 0"
+            f"Detected {self.current_cell_count} cells at timestep {self.time}, running treatment 0"
         )
-        for treatment in range(2):
-            for i in range(n_timesteps_treatment):
-                self.advance_one_timestep(
-                    timestep + i + treatment * n_timesteps_treatment,
-                    treatment=treatment,
+        cycle_count = 0
+        while cycle_count < max_cycles:
+            cycle_count += 1
+            print(f"Cycle {cycle_count}")
+            for treatment in range(self.number_of_treatments):
+                for i in range(n_timesteps_treatment):
+                    self.advance_one_timestep(treatment=treatment)
+                    if len(self.alive_ids) == 0:
+                        print("All cells died; simulation complete")
+                        return
+                    if len(self.alive_ids) > 4 * detection_cell_count:
+                        print(
+                            f"Detected {len(self.alive_ids)} cells at timestep {self.time + i}; "
+                            f"patient has gained resistance and progressed"
+                        )
+                        return
+                print(
+                    f"Ran treatment {treatment} for {n_timesteps_treatment} timesteps"
                 )
-                if len(self.alive_ids) == 0:
-                    print("All cells died; simulation complete")
-                    return
-                if len(self.alive_ids) > 4 * detection_cell_count:
-                    print(
-                        f"Detected {len(self.alive_ids)} cells at timestep {timestep + i}; "
-                        f"patient has gained resistance and progressed"
-                    )
-                    return
-            print(f"Ran treatment {treatment} for {n_timesteps_treatment} timesteps")
+            if len(self.alive_ids) > 4 * detection_cell_count:
+                print(
+                    f"Detected {len(self.alive_ids)} cells at timestep {self.time}; "
+                    f"patient has gained resistance and progressed"
+                )
+                break
+        print("Simulation complete")
 
-    def advance_one_timestep(self, timestep: int, treatment: int | None = None):
-        
+    def advance_one_timestep(self, treatment: int | None):
         if self.time % RECORD_FREQ == 0:
-            self.live_agent_recorder.record_time_pt(self.agents)
+            self.live_agent_recorder.record_time_pt(self.agents, self.time)
 
         self.time += 1
 
@@ -111,7 +127,7 @@ class Phylogeny(object):
         for alive_id in self.alive_ids:
             agent = self.agents[alive_id]
             assert agent is not None
-            doses = get_doses_from_treatment(treatment)
+            doses = get_doses_from_treatment(treatment, self.number_of_treatments)
             for _ in range(self.network_updates_per_timepoint):
                 agent.update_phenotype(doses)
             relative_growth_rate = agent.calc_growth_rate(
@@ -146,18 +162,19 @@ class Phylogeny(object):
                     self.agents.append(new_agent)
                     self.parent_ids.append(alive_id)
                     self.alive_ids.append(new_agent.id)
-        if timestep % 10 == 0:
+        if self.time % 10 == 0:
             print(f"growth rates: {np.mean(growth_rates)} ± {np.std(growth_rates)}")
         # log results
         # if timestep % 10 == 0:
         with open("logs/cell_counts.csv", "a", encoding="utf-8") as f:
-            f.write(f"{timestep},{self.current_cell_count},{len(self.alive_ids)}\n")
+            f.write(f"{self.time},{self.current_cell_count},{len(self.alive_ids)}\n")
         with open("logs/cell_phenotypes.csv", "a", encoding="utf-8") as f:
             for agent_id in self.alive_ids:
                 agent = self.agents[agent_id]
                 f.write(
-                    f"{timestep},{agent.id},{agent.n_cells},{agent.phenotype[0]},{agent.phenotype[1]},"
-                    f"{agent.phenotype[2]}\n"
+                    f"{self.time},{agent.id},{agent.n_cells},"
+                    + ",".join([str(x) for x in agent.phenotype.detach().numpy()])
+                    + "\n"
                 )
         if not self.is_cell:
             with open("logs/tree_structure.csv", "a", encoding="utf-8") as f:
@@ -170,14 +187,17 @@ class Phylogeny(object):
                         and self.parent_ids[agent_id] == agent.parent.id
                     )
                     f.write(
-                        f"{timestep},{agent.id},{agent.parent.id if agent.parent is not None else None},{agent.n_cells}\n"
+                        f"{self.time},{agent.id},{agent.parent.id if agent.parent is not None else None},{agent.n_cells}\n"
                     )
 
 
-def get_doses_from_treatment(treatment: int | None):
+def get_doses_from_treatment(treatment: int | None, number_of_treatments: int):
     return torch.from_numpy(
         np.array(
-            [0.0 if (i != treatment or treatment is None) else 1.0 for i in range(2)],
+            [
+                0.0 if (i != treatment or treatment is None) else 1.0
+                for i in range(number_of_treatments)
+            ],
             dtype=np.float32,
         )
     ).reshape(1, -1)
