@@ -185,6 +185,7 @@ class Agent(object):
         self,
         is_cell: bool,
         id: int,
+        clone_id: int,
         learning_rate: float = 1 * (10**-3),
         optimizer_cls: type = torch.optim.SGD,
         activation_fxn: nn.Module = nn.ReLU(),
@@ -204,9 +205,14 @@ class Agent(object):
         activation:
             nn.ReLU(), nn.LeakyReLU(), etc...
 
+        id: int
+            Postion in Pylogeny.agent
+
+
         """
 
         self.id = id
+        self.clone_id = clone_id
         self.parent = parent
         self.model = NN(
             n_features=N_TREATMENTS,
@@ -293,13 +299,14 @@ class Agent(object):
             self.calc_loss(pheno, doses, resistance_cost, resistance_benefit)
         )
 
-    def copy(self, new_id: int) -> "Agent":
+    def copy(self, new_id: int, new_clone_id: int) -> "Agent":
         """
         returns a copy of the agent, with a new id and deepcopied model and optimizer
         """
         new_agent = Agent(
             is_cell=self.status == "cell",
             id=new_id,
+            clone_id=new_clone_id,
             learning_rate=self.model.optimizer.param_groups[0]["lr"],
             optimizer_cls=type(self.model.optimizer),
             activation_fxn=self.model.activation_fxn,
@@ -314,14 +321,14 @@ class Agent(object):
         )
         return new_agent
 
-    def copy_mutated(self, randomiser: npr.RandomState, new_id: int) -> "Agent":
-        """
-        returns a mutated copy of the agent, with a new id and deepcopied model
-        """
-        new_agent = self.copy(new_id)
-        new_agent.n_cells = 1
-        new_agent.mutate()
-        return new_agent
+    # def copy_mutated(self, randomiser: npr.RandomState, new_clone_id: int, new_cell_id: int | None = None) -> "Agent":
+    #     """
+    #     returns a mutated copy of the agent, with a new id and deepcopied model
+    #     """
+    #     new_agent = self.copy(new_clone_id=new_clone_id, new_cell_id=new_cell_id)
+    #     new_agent.n_cells = 1
+    #     new_agent.mutate()
+    #     return new_agent
 
     def dies(
         self, randomiser: npr.RandomState, growth_rate: float, turnover: float = 0.0
@@ -379,7 +386,10 @@ class Agent(object):
             )
         )
         self.n_cells += division_count - death_count - mutating_division_count
-        for i in range(mutating_division_count):
-            new_clones.append(self.copy_mutated(randomiser, next_id + i))
-        return new_clones, division_count - mutating_division_count, death_count
+
+        return mutating_division_count, division_count - mutating_division_count, death_count
+
+        # for i in range(mutating_division_count):
+        #     new_clones.append(self.copy_mutated(randomiser, next_id + i))
+        # return new_clones, division_count - mutating_division_count, death_count
 
