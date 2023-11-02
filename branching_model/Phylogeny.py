@@ -157,9 +157,10 @@ class Phylogeny(object):
                     f"patient has gained resistance and progressed"
                 )
                 break
+
         print("Simulation complete")
-        self.live_agent_recorder.write_csv("logs/live_agents.csv")
-        self.dead_agent_recorder.write_csv("logs/dead_agents.csv")
+        self.live_agent_recorder.write_csv(dst_dir="logs", prefix="live")
+        self.dead_agent_recorder.write_csv(dst_dir="logs", prefix="dead")
 
     def advance_one_timestep(self, treatment: int | None):
         if self.time % RECORD_FREQ == 0:
