@@ -1,6 +1,6 @@
 # import libraies
 from copy import deepcopy
-from networkx import ring_of_cliques
+# from networkx import ring_of_cliques
 import numpy as np
 import math
 import itertools
