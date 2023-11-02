@@ -5,11 +5,9 @@ import torch
 from torch import nn
 
 from branching_model.Agent import Agent
-from branching_model.io import Recorder
-
+from branching_model.Recorder import Recorder
 
 RECORD_FREQ = 1  # Record interval
-
 
 class Phylogeny(object):
     def __init__(
@@ -28,6 +26,7 @@ class Phylogeny(object):
         number_of_treatments: int = 2,
         turnover: float = 0.0,
     ):
+
         self.is_cell = is_cell
         self.learning_rate = learning_rate
         self.optimizer_cls = optimizer_cls
@@ -35,11 +34,16 @@ class Phylogeny(object):
         self.model_params = model_params
 
         self.time = 0
+        self.max_id = 0
+        self.max_clone_id = 0
+        # self.max_cell_id = 0
         self.live_agent_recorder = Recorder()
 
         first_agent = Agent(
             is_cell=is_cell,
-            id=0,
+            id=self.max_id,
+            clone_id=self.max_clone_id,
+            cell_id=self.max_cell_id,
             learning_rate=learning_rate,
             optimizer_cls=optimizer_cls,
             activation_fxn=activation_fxn,
@@ -192,19 +196,41 @@ class Phylogeny(object):
                 division_count += internal_division_count
                 division_count += len(new_clones)
                 death_count += internal_death_count
-                self.agents.extend(new_clones)
-                self.parent_ids.extend([alive_id] * len(new_clones))
-                self.alive_ids.extend([clone.id for clone in new_clones])
+                # self.agents.extend(new_clones)
+                # self.parent_ids.extend([alive_id] * len(new_clones))
+                # self.alive_ids.extend([clone.id for clone in new_clones])
                 if agent.n_cells == 0:
                     self.alive_ids.remove(alive_id)
+
+                for i in range(new_clones):
+                    self.max_id += 1
+                    self.max_clone_id += 1
+                    new_agent = agent.copy(id=self.max_id, new_clone_id=self.max_clone_id)
+                    new_agent.mutate()
+                    new_agent.n_cells = 1
+
+                    self.agents.append(new_agent)
+                    self.parent_ids.append(alive_id)
+                    self.alive_ids.append(new_agent.id)
+
             else:
                 if agent.dies(self.randomiser, growth_rate, self.turnover):
                     death_count += 1
                     self.alive_ids.remove(alive_id)
                 elif agent.divides(self.randomiser, growth_rate, self.turnover):
-                    division_count += 1
-                    new_agent = agent.copy(new_id=len(self.agents))
                     mutate = self.randomiser.random() < self.mutations_per_division
+                    division_count += 1
+                    self.max_cell_id += 1
+                    self.max_id += 1
+
+                    if mutate:
+                        self.max_clone_id += 1
+                        new_clone_id = self.max_clone_id
+                    else:
+                        # Same clone as parent since no mutation
+                        new_clone_id = agent.clone_id
+
+                    new_agent = agent.copy(id=self.max_id, new_clone_id=new_clone_id)
                     if mutate:
                         new_agent.mutate()
 
