@@ -33,6 +33,7 @@ class Phylogeny(object):
         )
         self.agents = [first_agent]
         self.alive_ids: list[int] = [0]
+        # self.dead_ids: list[int | None] = None (wee need to keep track of the dead cells "to mirror what we get from ctDNA")
         self.parent_ids: list[int | None] = [None]
         self.randomiser = np.random.RandomState(seed)
 
@@ -42,17 +43,29 @@ class Phylogeny(object):
             doses = get_doses_from_treatment(treatment)
             agent.update_phenotype(doses)
             if not self.is_cell:
+                # Clones
                 new_clones = agent.update_cell_count(self.randomiser)
-                self.agents.extend(new_clones)
-                self.parent_ids.extend([alive_cell_id] * len(new_clones))
+                n_new_clones = agent.update_cell_count(doses)
+                for i in range(n_new_clones):
+                    new_agent = agent.copy(new_id=len(self.agents))
+                    new_agent.mutate()
+                    self.agents.append(new_agent)
+                    self.parent_ids.append(alive_cell_id)                
             else:
                 growth_rate = agent.calc_growth_rate(agent.phenotype, doses)
+                self.dead_cell_ids = []
                 if agent.dies(self.randomiser, growth_rate):
                     self.alive_ids.remove(alive_cell_id)
+                    self.dead_cell_ids.append(alive_cell_id)
                 elif agent.divides(self.randomiser, growth_rate):
-                    agent_copy = agent.copy(new_id=len(self.agents))
-                    self.agents.append(agent_copy)
+                    new_agent = agent.copy(new_id=len(self.agents))
+                    mutate = np.random.binomial(1, Agent.CLONE_MUTATION_RATE) == 1
+                    if mutate:
+                        new_agent.mutate()
+
+                    self.agents.append(new_agent)
                     self.parent_ids.append(alive_cell_id)
+        for dead_cell_id in self.dead_cell_ids
 
 
 def get_doses_from_treatment(treatment: int | None):

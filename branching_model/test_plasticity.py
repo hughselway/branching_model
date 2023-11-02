@@ -8,21 +8,18 @@ import pathlib
 import matplotlib.pyplot as plt
 
 from branching_model import Agent
+import importlib
+importlib.reload(Agent)
 
-
-def test_adaptation(
-    doses: torch.Tensor,
-    plot_title: str,
-    plot_f: str,
-    n_steps: int = 100,
-    learning_rate: float = 10**-1,
-):
-    cell = Agent.Agent(is_cell=True, id=0, learning_rate=learning_rate)
-    phenotypes: list[torch.Tensor | None] = [None] * n_steps
+def test_adaptation(doses, plot_title, plot_f, n_steps=100, learning_rate=10**-1):
+    cell = Agent.Agent(id=0, is_cell=True, learning_rate=learning_rate)
+    phenotypes = [None] * n_steps
     for i in range(n_steps):
         cell.update_phenotype(doses)
         phenotypes[i] = cell.phenotype.detach().numpy()
 
+    phenotypes = np.vstack(phenotypes)
+    # phenotypes = 1 - phenotypes
     time_array = np.arange(0, n_steps)
     pheno_df = pd.DataFrame(
         np.vstack(phenotypes),
