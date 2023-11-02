@@ -36,13 +36,13 @@ def get_cell_df(cell):
 
     return pheno_df
 
-def add_noise_to_weights(m, max_noise=0.25):
-    """
-    https://discuss.pytorch.org/t/is-there-any-way-to-add-noise-to-trained-weights/29829/5
-    """
-    with torch.no_grad():
-        if hasattr(m, 'weight'):
-            m.weight.add_(torch.randn(m.weight.size()) * max_noise)
+# def add_noise_to_weights(m, max_noise=0.25):
+#     """
+#     https://discuss.pytorch.org/t/is-there-any-way-to-add-noise-to-trained-weights/29829/5
+#     """
+#     with torch.no_grad():
+#         if hasattr(m, 'weight'):
+#             m.weight.add_(torch.randn(m.weight.size()) * max_noise)
 
 
 MAX_CELLS = 5

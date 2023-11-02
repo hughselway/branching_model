@@ -3,8 +3,10 @@ import torch
 from torch import nn
 
 from .Agent import Agent
+from .io import Recorder
 
 
+RECORD_FREQ = 1 # Record interval
 class Phylogeny(object):
     def __init__(
         self,
@@ -20,6 +22,9 @@ class Phylogeny(object):
         self.optimizer_cls = optimizer_cls
         self.activation_fxn = activation_fxn
         self.model_params = model_params
+
+        self.time = 0
+        self.live_agent_recorder = Recorder()
 
         first_agent = Agent(
             is_cell=is_cell,
@@ -38,6 +43,11 @@ class Phylogeny(object):
         self.randomiser = np.random.RandomState(seed)
 
     def advance_one_timestep(self, treatment: int | None = None):
+
+        if self.time % RECORD_FREQ == 0:
+            self.live_agent_recorder.record_time_pt(self.agents)
+
+        self.time += 1
         for alive_cell_id in self.alive_ids:
             agent = self.agents[alive_cell_id]
             doses = get_doses_from_treatment(treatment)
