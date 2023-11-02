@@ -75,7 +75,8 @@ class Phylogeny(object):
 
                     self.agents.append(new_agent)
                     self.parent_ids.append(alive_cell_id)
-        for dead_cell_id in self.dead_cell_ids
+        # for dead_cell_id in self.dead_cell_ids:
+        #     return dead_cell_id
 
 
 def get_doses_from_treatment(treatment: int | None):
