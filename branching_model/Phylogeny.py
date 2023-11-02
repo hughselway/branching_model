@@ -38,6 +38,7 @@ class Phylogeny(object):
         self.max_clone_id = 0
         # self.max_cell_id = 0
         self.live_agent_recorder = Recorder()
+        self.dead_agent_recorder = Recorder()
 
         first_agent = Agent(
             is_cell=is_cell,
@@ -52,6 +53,7 @@ class Phylogeny(object):
             n_cells=None if is_cell else 1,
         )
         self.agents = [first_agent]
+        self.dead_agents = []
         self.alive_ids: list[int] = [0]
         # self.dead_ids: list[int | None] = None (wee need to keep track of the dead cells "to mirror what we get from ctDNA")
         self.parent_ids: list[int | None] = [None]
@@ -157,6 +159,7 @@ class Phylogeny(object):
                 break
         print("Simulation complete")
         self.live_agent_recorder.write_csv("logs/live_agents.csv")
+        self.dead_agent_recorder.write_csv("logs/dead_agents.csv")
 
     def advance_one_timestep(self, treatment: int | None):
         if self.time % RECORD_FREQ == 0:
@@ -164,6 +167,7 @@ class Phylogeny(object):
 
         self.time += 1
 
+        self.dead_agents = []
         growth_rates = []
         death_count = 0
         division_count = 0
@@ -201,6 +205,7 @@ class Phylogeny(object):
                 # self.alive_ids.extend([clone.id for clone in new_clones])
                 if agent.n_cells == 0:
                     self.alive_ids.remove(alive_id)
+                    self.dead_agents.append(agent)
 
                 for i in range(new_clones):
                     self.max_id += 1
@@ -217,6 +222,7 @@ class Phylogeny(object):
                 if agent.dies(self.randomiser, growth_rate, self.turnover):
                     death_count += 1
                     self.alive_ids.remove(alive_id)
+                    self.dead_agents.append(agent)
                 elif agent.divides(self.randomiser, growth_rate, self.turnover):
                     mutate = self.randomiser.random() < self.mutations_per_division
                     division_count += 1
@@ -237,6 +243,10 @@ class Phylogeny(object):
                     self.agents.append(new_agent)
                     self.parent_ids.append(alive_id)
                     self.alive_ids.append(new_agent.id)
+
+        if self.time % RECORD_FREQ == 0 and len(self.dead_agents) > 0:
+            self.dead_agent_recorder.record_time_pt(self.dead_agents, self.time)
+
         if self.time % 10 == 0:
             print(f"growth rates: {np.mean(growth_rates)} ± {np.std(growth_rates)}")
         # log results
