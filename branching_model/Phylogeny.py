@@ -49,6 +49,7 @@ class Phylogeny(object):
         )
         self.agents = [first_agent]
         self.alive_ids: list[int] = [0]
+        # self.dead_ids: list[int | None] = None (wee need to keep track of the dead cells "to mirror what we get from ctDNA")
         self.parent_ids: list[int | None] = [None]
         self.randomiser = npr.RandomState(seed)
         self.baseline_growth_rate = baseline_growth_rate

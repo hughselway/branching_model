@@ -1,23 +1,14 @@
-# import libraies
 from copy import deepcopy
-from networkx import ring_of_cliques
 import numpy as np
-import math
-import itertools
-from sympy import N
-import numpy.random as npr
 from torch import nn
 import torch
 import seaborn as sns
 import pandas as pd
-from scipy import stats
-from typing import Optional
 import matplotlib.pyplot as plt
-
 
 # Related to the network
 N_LAYERS = 3
-N_TREATMENTS = 3
+N_TREATMENTS = 2
 N_IN = N_TREATMENTS
 N_OUT = N_TREATMENTS + 1
 N_HIDDEN_NEURONS = 2 * (N_OUT)
@@ -25,24 +16,8 @@ FUNNEL_S = 0.5
 
 WT_IDX = 0
 
-
-BP_MUTATION_RATE = 4 * (10**-9)  # from Ben's paper, referenced by reviewer 1
-BP_IN_EXOME = (45 - 18) * (
-    10**6
-)  # 45Mb - 18Mb of potential synonymous mutations http://www.nature.com/nature/journal/v536/n7616/full/nature19057.html?foxtrotcallback=true
-CLONE_MUTATION_RATE = 1 - stats.binom.pmf(
-    k=0, n=BP_IN_EXOME, p=BP_MUTATION_RATE
-)  # probability of at least 1 mutation
-MUTATION_WEIGHT = 0.5  # Maximum amount of noise to add to new agent's network
-
-
-def add_noise_to_weights(m, max_noise=0.25):
-    """
-    https://discuss.pytorch.org/t/is-there-any-way-to-add-noise-to-trained-weights/29829/5
-    """
-    with torch.no_grad():
-        if hasattr(m, "weight"):
-            m.weight.add_(torch.randn(m.weight.size()) * max_noise)
+RESISTANCE_C = 0.1
+RESISTANCE_B = 1
 
 
 class NN(nn.Module):
@@ -188,11 +163,9 @@ class Agent(object):
         learning_rate: float = 1 * (10**-3),
         optimizer_cls: type = torch.optim.SGD,
         activation_fxn: nn.Module = nn.ReLU(),
-        model_params: Optional[dict] = None,
-        # model_params: dict | None = None,
+        model_params: dict | None = None,
         parent: "Agent | None" = None,
-        n_cells: Optional[int] = None,
-        # n_cells: int | None = None,
+        n_cells: int | None = None,
     ):
         """
 
@@ -244,13 +217,7 @@ class Agent(object):
 
         self.phenotype = new_pheno
 
-    def calc_loss(
-        self,
-        pheno: torch.Tensor,
-        doses: torch.Tensor,
-        resistance_cost: float = 0.3,
-        resistance_benefit: float = 1,
-    ) -> torch.Tensor:
+    def calc_loss(self, pheno: torch.Tensor, doses: torch.Tensor) -> torch.Tensor:
         """
         minimize cost of treatment
         pheno: tensor
@@ -261,41 +228,27 @@ class Agent(object):
         treatment_effect = torch.sum(
             susceptibility[WT_IDX + 1 :] * doses
         )  # minimize this
-        total_resistance = torch.sum(
+        cost_of_resistance = torch.sum(
             pheno[WT_IDX + 1 :]
         )  # minimize this. Should select for susceptible when no drug
-        fitness = (
-            resistance_benefit * treatment_effect + resistance_cost * total_resistance
-        )
+        fitness = RESISTANCE_B * treatment_effect + RESISTANCE_C * cost_of_resistance
 
         return fitness
 
-    def mutate(self):
-        """
-        Mutation adds noise to inherited network and creates new optimizer
-        """
-        # self = cell
-        self.model.apply(lambda m: add_noise_to_weights(m, MUTATION_WEIGHT))
-        optimizer_init_kwargs = {"lr": self.model.optimizer.param_groups[0]["lr"]}
-        optimizer_cls = type(self.model.optimizer)
-        self.model.optimizer = self.model.get_optimizer(
-            optimizer_cls=optimizer_cls, optimizer_init_kwargs=optimizer_init_kwargs
-        )
+    def calc_growth_rate(self, pheno: torch.Tensor, doses: torch.Tensor) -> float:
+        return 1 - 2 * float(self.calc_loss(pheno, doses))
 
-    def calc_growth_rate(
-        self,
-        pheno: torch.Tensor,
-        doses: torch.Tensor,
-        resistance_cost: float,
-        resistance_benefit: float,
-    ) -> float:
-        return 1 - 2 * float(
-            self.calc_loss(pheno, doses, resistance_cost, resistance_benefit)
-        )
+    def update_cell_count(self, randomiser: np.random.RandomState) -> list["Agent"]:
+        """
+        update number of cells according to current fitness
+        returns list of new clones resulting from mutations (if any)
+        """
+        assert self.status == "clone"
+        raise NotImplementedError
 
     def copy(self, new_id: int) -> "Agent":
         """
-        returns a copy of the agent, with a new id and deepcopied model and optimizer
+        returns a copy of the agent, with a new id and deepcopied model
         """
         new_agent = Agent(
             is_cell=self.status == "cell",
@@ -308,78 +261,30 @@ class Agent(object):
             n_cells=None if self.status == "cell" else self.n_cells,
         )
         new_agent.model.load_state_dict(deepcopy(self.model.state_dict()))
-        # print("Not inheriting optimizer")
-        new_agent.model.optimizer.load_state_dict(
-            deepcopy(self.model.optimizer.state_dict())
-        )
         return new_agent
 
-    def copy_mutated(self, randomiser: npr.RandomState, new_id: int) -> "Agent":
-        """
-        returns a mutated copy of the agent, with a new id and deepcopied model
-        """
-        new_agent = self.copy(new_id)
-        new_agent.n_cells = 1
-        new_agent.mutate()
-        return new_agent
-
-    def dies(
-        self, randomiser: npr.RandomState, growth_rate: float, turnover: float = 0.0
-    ) -> bool:
+    def dies(self, randomiser: np.random.RandomState, growth_rate: float) -> bool:
         """
         randomly decide if the cell dies
-        turnover (between 0 and baseline_growth_rate) is the probability of death
         """
-        if growth_rate > turnover:
+        if growth_rate > 0:
             return False
-        if randomiser.uniform() < turnover - growth_rate:
+        if randomiser.uniform() < growth_rate + 1:
             return True
         return False
 
-    def divides(
-        self, randomiser: npr.RandomState, growth_rate: float, turnover: float = 0.0
-    ) -> bool:
+    def divides(self, randomiser: np.random.RandomState, growth_rate: float) -> bool:
         """
         randomly decide if the cell divides
         """
-        if growth_rate < -turnover:
+        if growth_rate < 0:
             return False
-        if randomiser.random() < turnover + growth_rate:
+        if randomiser.uniform() > growth_rate:
             return True
         return False
+    
+    # def create_new_clone(self, new_cells, new_mutants, n_killed, new_size):
+    #     new_cells = 
 
-    def update_cell_count(
-        self,
-        randomiser: npr.RandomState,
-        growth_rate: float,
-        mutations_per_division: float,
-        next_id: int,
-        turnover: float = 0.0,
-    ) -> tuple[list["Agent"], int, int]:
-        """
-        update number of cells according to current fitness
-        returns list of new clones resulting from mutations (if any)
-        """
-        assert self.status == "clone"
-        new_clones = []  # any divisions that have a mutation result in a new clone
-        division_count = (
-            0
-            if growth_rate < -turnover
-            else randomiser.binomial(self.n_cells, growth_rate + turnover)
-        )
-        mutating_division_count = randomiser.binomial(
-            division_count, mutations_per_division
-        )
-        death_count = (
-            0
-            if growth_rate > turnover
-            else randomiser.binomial(
-                self.n_cells + division_count - mutating_division_count,
-                turnover - growth_rate,
-            )
-        )
-        self.n_cells += division_count - death_count - mutating_division_count
-        for i in range(mutating_division_count):
-            new_clones.append(self.copy_mutated(randomiser, next_id + i))
-        return new_clones, division_count - mutating_division_count, death_count
+
 
