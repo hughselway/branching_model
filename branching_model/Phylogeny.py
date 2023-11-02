@@ -26,6 +26,7 @@ class Phylogeny(object):
         network_updates_per_timepoint: int = 1,
         mutations_per_division: float = 0.01,
         number_of_treatments: int = 2,
+        turnover: float = 0.0,
     ):
         self.is_cell = is_cell
         self.learning_rate = learning_rate
@@ -57,6 +58,7 @@ class Phylogeny(object):
         self.network_updates_per_timepoint = network_updates_per_timepoint
         self.mutations_per_division = mutations_per_division
         self.number_of_treatments = number_of_treatments
+        self.turnover = turnover
 
     @property
     def next_id(self):
@@ -71,7 +73,10 @@ class Phylogeny(object):
     def run_simulation(
         self,
         detection_cell_count: int = 1000,
-        n_timesteps_treatment: int = 20,
+        detection_treatment_delay: int = 0,
+        # n_timesteps_treatment: int = 20,
+        measure_tumour_every_n_timesteps: int = 7,
+        tumour_measurement_delay: int = 0,
         max_cycles: int = 1,
     ):
         os.makedirs("logs", exist_ok=True)
@@ -83,6 +88,10 @@ class Phylogeny(object):
                 + ",".join([f"R{i}" for i in range(1, self.number_of_treatments + 1)])
                 + "\n"
             )
+        with open("logs/cycle_times.csv", "w", encoding="utf-8") as f:
+            f.write("cycle,treatment,timesteps_to_detection\n")
+        with open("logs/birth_death_counts.csv", "w", encoding="utf-8") as f:
+            f.write("timestep,birth_count,death_count\n")
         if not self.is_cell:
             with open("logs/tree_structure.csv", "w", encoding="utf-8") as f:
                 f.write("timestep,agent_id,parent_id,n_cells\n")
@@ -90,13 +99,25 @@ class Phylogeny(object):
             self.advance_one_timestep(treatment=None)
         print(
             f"Detected {self.current_cell_count} cells at timestep {self.time}, running treatment 0"
+            + (
+                f" after {detection_treatment_delay} timesteps"
+                if detection_treatment_delay > 0
+                else ""
+            )
         )
+        for i in range(detection_treatment_delay):
+            self.advance_one_timestep(treatment=None)
+
         cycle_count = 0
         while cycle_count < max_cycles:
             cycle_count += 1
             print(f"Cycle {cycle_count}")
             for treatment in range(self.number_of_treatments):
-                for i in range(n_timesteps_treatment):
+                # for i in range(n_timesteps_treatment):
+                timestep_this_treatment = 0
+                last_tumour_measurement: int | None = None
+                while True:
+                    timestep_this_treatment += 1
                     self.advance_one_timestep(treatment=treatment)
                     if len(self.alive_ids) == 0:
                         print("All cells died; simulation complete")
@@ -107,9 +128,23 @@ class Phylogeny(object):
                             f"patient has gained resistance and progressed"
                         )
                         return
+                    if timestep_this_treatment % measure_tumour_every_n_timesteps == 0:
+                        if (
+                            last_tumour_measurement is not None
+                            and self.current_cell_count > last_tumour_measurement
+                        ):
+                            # Tumour has grown; move to next treatment
+                            break
+                        last_tumour_measurement = self.current_cell_count
+                for i in range(tumour_measurement_delay):
+                    self.advance_one_timestep(treatment=treatment)
                 print(
-                    f"Ran treatment {treatment} for {n_timesteps_treatment} timesteps"
+                    f"Ran treatment {treatment} for {timestep_this_treatment} timesteps, "
+                    f"then waited {tumour_measurement_delay} timesteps; "
+                    f"tumour size {self.current_cell_count}"
                 )
+                with open("logs/cycle_times.csv", "a", encoding="utf-8") as f:
+                    f.write(f"{cycle_count},{treatment},{timestep_this_treatment}\n")
             if len(self.alive_ids) > 4 * detection_cell_count:
                 print(
                     f"Detected {len(self.alive_ids)} cells at timestep {self.time}; "
@@ -117,6 +152,7 @@ class Phylogeny(object):
                 )
                 break
         print("Simulation complete")
+        self.live_agent_recorder.write_csv("logs/live_agents.csv")
 
     def advance_one_timestep(self, treatment: int | None):
         if self.time % RECORD_FREQ == 0:
@@ -125,6 +161,8 @@ class Phylogeny(object):
         self.time += 1
 
         growth_rates = []
+        death_count = 0
+        division_count = 0
         for alive_id in self.alive_ids:
             agent = self.agents[alive_id]
             assert agent is not None
@@ -140,22 +178,42 @@ class Phylogeny(object):
             growth_rate = self.baseline_growth_rate * relative_growth_rate
             growth_rates.append(growth_rate)
             if not self.is_cell:
+<<<<<<< HEAD
                 new_clones = agent.update_cell_count(
+=======
+                (
+                    new_clones,
+                    internal_division_count,
+                    internal_death_count,
+                ) = agent.update_cell_count(
+>>>>>>> f45ab9b9fa0a17563bb40de8a14ca2be37949956
                     self.randomiser,
                     growth_rate,
                     self.mutations_per_division,
                     len(self.parent_ids),
+                    self.turnover,
                 )
+                division_count += internal_division_count
+                division_count += len(new_clones)
+                death_count += internal_death_count
                 self.agents.extend(new_clones)
                 self.parent_ids.extend([alive_id] * len(new_clones))
                 self.alive_ids.extend([clone.id for clone in new_clones])
                 if agent.n_cells == 0:
                     self.alive_ids.remove(alive_id)
             else:
+<<<<<<< HEAD
                 self.dead_cell_ids = []
                 if agent.dies(self.randomiser, growth_rate):
                     self.alive_ids.remove(alive_id)
                 elif agent.divides(self.randomiser, growth_rate):
+=======
+                if agent.dies(self.randomiser, growth_rate, self.turnover):
+                    death_count += 1
+                    self.alive_ids.remove(alive_id)
+                elif agent.divides(self.randomiser, growth_rate, self.turnover):
+                    division_count += 1
+>>>>>>> f45ab9b9fa0a17563bb40de8a14ca2be37949956
                     new_agent = agent.copy(new_id=len(self.agents))
                     mutate = self.randomiser.random() < self.mutations_per_division
                     if mutate:
@@ -178,6 +236,8 @@ class Phylogeny(object):
                     + ",".join([str(x) for x in agent.phenotype.detach().numpy()])
                     + "\n"
                 )
+        with open("logs/birth_death_counts.csv", "a", encoding="utf-8") as f:
+            f.write(f"{self.time},{division_count},{death_count}\n")
         if not self.is_cell:
             with open("logs/tree_structure.csv", "a", encoding="utf-8") as f:
                 for agent_id in self.alive_ids:
