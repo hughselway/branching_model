@@ -163,8 +163,9 @@ class Phylogeny(object):
         self.dead_agent_recorder.write_csv(dst_dir="logs", prefix="dead")
 
     def advance_one_timestep(self, treatment: int | None):
+        doses = get_doses_from_treatment(treatment, self.number_of_treatments)
         if self.time % RECORD_FREQ == 0:
-            self.live_agent_recorder.record_time_pt(self.agents, self.time)
+            self.live_agent_recorder.record_time_pt(self.agents, self.time, doses)
 
         self.time += 1
 
@@ -175,7 +176,7 @@ class Phylogeny(object):
         for alive_id in self.alive_ids:
             agent = self.agents[alive_id]
             assert agent is not None
-            doses = get_doses_from_treatment(treatment, self.number_of_treatments)
+            # doses = get_doses_from_treatment(treatment, self.number_of_treatments)
             for _ in range(self.network_updates_per_timepoint):
                 agent.update_phenotype(doses)
             relative_growth_rate = agent.calc_growth_rate(
@@ -246,7 +247,7 @@ class Phylogeny(object):
                     self.alive_ids.append(new_agent.id)
 
         if self.time % RECORD_FREQ == 0 and len(self.dead_agents) > 0:
-            self.dead_agent_recorder.record_time_pt(self.dead_agents, self.time)
+            self.dead_agent_recorder.record_time_pt(self.dead_agents, self.time, doses)
 
         if self.time % 10 == 0:
             print(f"growth rates: {np.mean(growth_rates)} ± {np.std(growth_rates)}")

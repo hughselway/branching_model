@@ -89,8 +89,19 @@ class Recorder(object):
 
         return mutation_df
 
+    def add_treatment_col(self, df, doses):
 
-    def record_time_pt(self, agent_list, time_pt):
+        doses_np = doses.squeeze().detach().numpy()
+        doses_df = pd.DataFrame(np.vstack([doses_np for i in range(df.shape[0])]),
+                                columns=[f"T{i+1}" for i in range(len(doses_np))])
+
+        df = df.join(doses_df)
+
+        return df
+
+
+    def record_time_pt(self, agent_list, time_pt, doses):
+
         sizes = {agent.id: 0 for agent in agent_list}
         phenotypes = {agent.id: None for agent in agent_list}
         clone_ids = {agent.id: agent.clone_id for agent in agent_list}
@@ -108,7 +119,6 @@ class Recorder(object):
             sizes[agent.id] = size
             phenotypes[agent.id] = agent.phenotype.detach().numpy()
 
-
         phenotypes = np.vstack([phenotypes[idx] for idx in agent_ids])
         phenotype_cols = ["S", *[f"R{i}" for i in range(1, phenotypes.shape[1])]]
         _pheno_df = pd.DataFrame(phenotypes, columns=phenotype_cols)
@@ -123,7 +133,11 @@ class Recorder(object):
             }
         ).join(_pheno_df)
 
+        time_pt_size_df = self.add_treatment_col(time_pt_size_df, doses)
+
         time_pt_clone_mutation_df = self.get_mutation_df(agent_list=agent_list, time_pt=time_pt, resolution=CLONE_STR)
+        time_pt_clone_mutation_df = self.add_treatment_col(time_pt_clone_mutation_df, doses)
+
         clone_res_vaf = self.calculate_vaf(time_pt_size_df, time_pt_clone_mutation_df)
         vaf_col_pos = list(time_pt_clone_mutation_df).index(MUTATION_SIZE_COL) + 1
         time_pt_clone_mutation_df.insert(loc=vaf_col_pos, column=VAF_COL, value=clone_res_vaf)
@@ -133,6 +147,7 @@ class Recorder(object):
 
         if agent_list[0].status == CELL_STR:
             time_pt_cell_mutation_df = self.get_mutation_df(agent_list=agent_list, time_pt=time_pt, resolution=CELL_STR)
+            time_pt_cell_mutation_df = self.add_treatment_col(time_pt_cell_mutation_df, doses)
             cell_res_vaf = self.calculate_vaf(time_pt_size_df, time_pt_cell_mutation_df)
             vaf_col_pos = list(time_pt_cell_mutation_df).index(MUTATION_SIZE_COL) + 1
             time_pt_cell_mutation_df.insert(loc=vaf_col_pos, column=VAF_COL, value=cell_res_vaf)
@@ -198,10 +213,18 @@ if __name__ == "__main__":
         # current_max_id = initial_cell.id
         n_created = 1
         n_clones = 1
-        doses = torch.zeros(Agent.N_TREATMENTS).reshape(1, -1)
+        treatment_time = 10
+        no_doses = torch.zeros(Agent.N_TREATMENTS).reshape(1, -1)
+        # np_treatment = np.zeros(Agent.N_TREATMENTS)
+        # np_treatment[0] = 1
+        # treament_dose = torch.tensor(np_treatment).reshape(1, -1)
+        treament_dose = torch.zeros_like(no_doses)
+        treament_dose[0][0] = 1.0
+        doses = no_doses
         time = 0
         while n_clones < n_agents:
-            recorder.record_time_pt(agent_list, time)
+            if time > treatment_time:
+                doses = treament_dose
             for cell in agent_list:
                 cell.update_phenotype(doses)
                 p = cell.calc_growth_rate(cell.phenotype, doses, resistance_cost=0.2, resistance_benefit=0.5)
@@ -226,9 +249,11 @@ if __name__ == "__main__":
                             new_cell.time_created = time
                             agent_list.append(new_cell)
 
+            recorder.record_time_pt(agent_list, time, doses)
             time += 1
 
         return recorder, agent_list
+
 
     recorder, agent_list = generate_tree()
     self = recorder
