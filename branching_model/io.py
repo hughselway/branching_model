@@ -35,7 +35,7 @@ class Recorder(object):
         phenotypes = {agent.id:None for agent in agent_list}
 
         agent_ids = [agent.id for agent in agent_list]
-        edge_dict = {agent.id: agent.parent.id if agent.parent is not None else ROOT_PARENT_ID for agent in tree.agents}
+        edge_dict = {agent.id: agent.parent.id if agent.parent is not None else ROOT_PARENT_ID for agent in agent_list}
 
         for agent in agent_list:
             agent.phenotype

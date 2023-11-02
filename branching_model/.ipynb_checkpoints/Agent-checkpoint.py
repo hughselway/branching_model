@@ -1,16 +1,9 @@
-# import libraies
 from copy import deepcopy
-from networkx import ring_of_cliques
 import numpy as np
-import math
-import itertools
-from sympy import N
 from torch import nn
 import torch
 import seaborn as sns
 import pandas as pd
-from scipy import stats
-from typing import Optional
 import matplotlib.pyplot as plt
 
 # Related to the network
@@ -26,20 +19,6 @@ WT_IDX = 0
 RESISTANCE_C = 0.1
 RESISTANCE_B = 1
 
-
-BP_MUTATION_RATE = 4*(10**-9)  # from Ben's paper, referenced by reviewer 1
-BP_IN_EXOME = (45-18)*(10**6)  # 45Mb - 18Mb of potential synonymous mutations http://www.nature.com/nature/journal/v536/n7616/full/nature19057.html?foxtrotcallback=true
-CLONE_MUTATION_RATE = 1 - stats.binom.pmf(k=0, n=BP_IN_EXOME, p=BP_MUTATION_RATE) # probability of at least 1 mutation
-MUTATION_WEIGHT = 0.5 # Maximum amount of noise to add to new agent's network
-
-
-def add_noise_to_weights(m, max_noise=0.25):
-    """
-    https://discuss.pytorch.org/t/is-there-any-way-to-add-noise-to-trained-weights/29829/5
-    """
-    with torch.no_grad():
-        if hasattr(m, 'weight'):
-            m.weight.add_(torch.randn(m.weight.size()) * max_noise)
 
 class NN(nn.Module):
     def __init__(
@@ -184,11 +163,9 @@ class Agent(object):
         learning_rate: float = 1 * (10**-3),
         optimizer_cls: type = torch.optim.SGD,
         activation_fxn: nn.Module = nn.ReLU(),
-        model_params: Optional[dict] = None,
-        # model_params: dict | None = None,
+        model_params: dict | None = None,
         parent: "Agent | None" = None,
-        n_cells: Optional[int] = None,
-        # n_cells: int | None = None,
+        n_cells: int | None = None,
     ):
         """
 
@@ -258,19 +235,6 @@ class Agent(object):
 
         return fitness
 
-    def mutate(self):
-        """
-        Mutation adds noise to inherited network and creates new optimizer
-        """
-        # self = cell
-        self.model.apply(lambda m: add_noise_to_weights(m, MUTATION_WEIGHT))
-        optimizer_init_kwargs = {"lr": self.model.optimizer.param_groups[0]["lr"]}
-        optimizer_cls=type(self.model.optimizer)
-        self.model.optimizer = self.model.get_optimizer(
-            optimizer_cls=optimizer_cls,
-            optimizer_init_kwargs=optimizer_init_kwargs)
-
-
     def calc_growth_rate(self, pheno: torch.Tensor, doses: torch.Tensor) -> float:
         return 1 - 2 * float(self.calc_loss(pheno, doses))
 
@@ -284,7 +248,7 @@ class Agent(object):
 
     def copy(self, new_id: int) -> "Agent":
         """
-        returns a copy of the agent, with a new id and deepcopied model and optimizer
+        returns a copy of the agent, with a new id and deepcopied model
         """
         new_agent = Agent(
             is_cell=self.status == "cell",
@@ -297,9 +261,6 @@ class Agent(object):
             n_cells=None if self.status == "cell" else self.n_cells,
         )
         new_agent.model.load_state_dict(deepcopy(self.model.state_dict()))
-        # print("Not inheriting optimizer")
-        new_agent.model.optimizer.load_state_dict(deepcopy(self.model.optimizer.state_dict()))
-
         return new_agent
 
     def dies(self, randomiser: np.random.RandomState, growth_rate: float) -> bool:
@@ -321,4 +282,9 @@ class Agent(object):
         if randomiser.uniform() > growth_rate:
             return True
         return False
+    
+    # def create_new_clone(self, new_cells, new_mutants, n_killed, new_size):
+    #     new_cells = 
+
+
 
