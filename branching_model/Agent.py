@@ -5,6 +5,7 @@ import numpy as np
 import math
 import itertools
 from sympy import N
+import numpy.random as npr
 from torch import nn
 import torch
 import seaborn as sns
@@ -15,16 +16,13 @@ import matplotlib.pyplot as plt
 
 # Related to the network
 N_LAYERS = 3
-N_TREATMENTS = 2
+N_TREATMENTS = 3
 N_IN = N_TREATMENTS
 N_OUT = N_TREATMENTS + 1
 N_HIDDEN_NEURONS = 2 * (N_OUT)
 FUNNEL_S = 0.5
 
 WT_IDX = 0
-
-RESISTANCE_C = 0.1
-RESISTANCE_B = 1
 
 
 BP_MUTATION_RATE = 4*(10**-9)  # from Ben's paper, referenced by reviewer 1
@@ -240,7 +238,13 @@ class Agent(object):
 
         self.phenotype = new_pheno
 
-    def calc_loss(self, pheno: torch.Tensor, doses: torch.Tensor) -> torch.Tensor:
+    def calc_loss(
+        self,
+        pheno: torch.Tensor,
+        doses: torch.Tensor,
+        resistance_cost: float = 0.3,
+        resistance_benefit: float = 1,
+    ) -> torch.Tensor:
         """
         minimize cost of treatment
         pheno: tensor
@@ -251,10 +255,12 @@ class Agent(object):
         treatment_effect = torch.sum(
             susceptibility[WT_IDX + 1 :] * doses
         )  # minimize this
-        cost_of_resistance = torch.sum(
+        total_resistance = torch.sum(
             pheno[WT_IDX + 1 :]
         )  # minimize this. Should select for susceptible when no drug
-        fitness = RESISTANCE_B * treatment_effect + RESISTANCE_C * cost_of_resistance
+        fitness = (
+            resistance_benefit * treatment_effect + resistance_cost * total_resistance
+        )
 
         return fitness
 
@@ -271,16 +277,47 @@ class Agent(object):
             optimizer_init_kwargs=optimizer_init_kwargs)
 
 
-    def calc_growth_rate(self, pheno: torch.Tensor, doses: torch.Tensor) -> float:
-        return 1 - 2 * float(self.calc_loss(pheno, doses))
+    def calc_growth_rate(
+        self,
+        pheno: torch.Tensor,
+        doses: torch.Tensor,
+        resistance_cost: float,
+        resistance_benefit: float,
+    ) -> float:
+        return 1 - 2 * float(
+            self.calc_loss(pheno, doses, resistance_cost, resistance_benefit)
+        )
 
-    def update_cell_count(self, randomiser: np.random.RandomState) -> list["Agent"]:
+    def update_cell_count(
+        self,
+        randomiser: npr.RandomState,
+        growth_rate: float,
+        mutations_per_division: float,
+        next_id: int,
+    ) -> list["Agent"]:
         """
         update number of cells according to current fitness
         returns list of new clones resulting from mutations (if any)
         """
         assert self.status == "clone"
-        raise NotImplementedError
+        new_clones = []  # any divisions that have a mutation result in a new clone
+        division_count = (
+            0 if growth_rate < 0 else randomiser.binomial(self.n_cells, growth_rate)
+        )
+        mutating_division_count = randomiser.binomial(
+            division_count, mutations_per_division
+        )
+        death_count = (
+            0
+            if growth_rate > 0
+            else randomiser.binomial(
+                self.n_cells + division_count - mutating_division_count, -growth_rate
+            )
+        )
+        self.n_cells += division_count - death_count - mutating_division_count
+        for i in range(mutating_division_count):
+            new_clones.append(self.copy_mutated(randomiser, next_id + i))
+        return new_clones
 
     def copy(self, new_id: int) -> "Agent":
         """
@@ -299,26 +336,34 @@ class Agent(object):
         new_agent.model.load_state_dict(deepcopy(self.model.state_dict()))
         # print("Not inheriting optimizer")
         new_agent.model.optimizer.load_state_dict(deepcopy(self.model.optimizer.state_dict()))
-
         return new_agent
 
-    def dies(self, randomiser: np.random.RandomState, growth_rate: float) -> bool:
+    def copy_mutated(self, randomiser: npr.RandomState, new_id: int) -> "Agent":
+        """
+        returns a mutated copy of the agent, with a new id and deepcopied model
+        """
+        new_agent = self.copy(new_id)
+        new_agent.n_cells = 1
+        new_agent.mutate()
+        return new_agent
+
+    def dies(self, randomiser: npr.RandomState, growth_rate: float) -> bool:
         """
         randomly decide if the cell dies
         """
         if growth_rate > 0:
             return False
-        if randomiser.uniform() < growth_rate + 1:
+        if randomiser.uniform() < growth_rate:
             return True
         return False
 
-    def divides(self, randomiser: np.random.RandomState, growth_rate: float) -> bool:
+    def divides(self, randomiser: npr.RandomState, growth_rate: float) -> bool:
         """
         randomly decide if the cell divides
         """
         if growth_rate < 0:
             return False
-        if randomiser.uniform() > growth_rate:
+        if randomiser.random() < abs(growth_rate):
             return True
         return False
 
