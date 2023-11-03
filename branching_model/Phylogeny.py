@@ -9,6 +9,7 @@ from branching_model.Recorder import Recorder
 
 RECORD_FREQ = 1  # Record interval
 
+
 class Phylogeny(object):
     def __init__(
         self,
@@ -26,7 +27,6 @@ class Phylogeny(object):
         number_of_treatments: int = 2,
         turnover: float = 0.0,
     ):
-
         self.is_cell = is_cell
         self.learning_rate = learning_rate
         self.optimizer_cls = optimizer_cls
@@ -34,17 +34,15 @@ class Phylogeny(object):
         self.model_params = model_params
 
         self.time = 0
-        self.max_id = 0
+        # self.max_id = 0
         self.max_clone_id = 0
-        # self.max_cell_id = 0
         self.live_agent_recorder = Recorder()
         self.dead_agent_recorder = Recorder()
 
         first_agent = Agent(
             is_cell=is_cell,
-            id=self.max_id,
+            id=0,
             clone_id=self.max_clone_id,
-            cell_id=self.max_cell_id,
             learning_rate=learning_rate,
             optimizer_cls=optimizer_cls,
             activation_fxn=activation_fxn,
@@ -118,6 +116,7 @@ class Phylogeny(object):
         while cycle_count < max_cycles:
             cycle_count += 1
             print(f"Cycle {cycle_count}")
+            exceeded_tumour_size = False
             for treatment in range(self.number_of_treatments):
                 # for i in range(n_timesteps_treatment):
                 timestep_this_treatment = 0
@@ -127,17 +126,16 @@ class Phylogeny(object):
                     self.advance_one_timestep(treatment=treatment)
                     if len(self.alive_ids) == 0:
                         print("All cells died; simulation complete")
-                        return
-                    if len(self.alive_ids) > 4 * detection_cell_count:
-                        print(
-                            f"Detected {len(self.alive_ids)} cells at timestep {self.time + i}; "
-                            f"patient has gained resistance and progressed"
-                        )
+                        with open("logs/cycle_times.csv", "a", encoding="utf-8") as f:
+                            f.write(
+                                f"{cycle_count},{treatment},{timestep_this_treatment}\n"
+                            )
                         return
                     if timestep_this_treatment % measure_tumour_every_n_timesteps == 0:
                         if (
                             last_tumour_measurement is not None
-                            and self.current_cell_count > last_tumour_measurement
+                            and self.current_cell_count > last_tumour_measurement * 0.9
+                            and timestep_this_treatment > 2
                         ):
                             # Tumour has grown; move to next treatment
                             break
@@ -151,11 +149,14 @@ class Phylogeny(object):
                 )
                 with open("logs/cycle_times.csv", "a", encoding="utf-8") as f:
                     f.write(f"{cycle_count},{treatment},{timestep_this_treatment}\n")
-            if len(self.alive_ids) > 4 * detection_cell_count:
-                print(
-                    f"Detected {len(self.alive_ids)} cells at timestep {self.time}; "
-                    f"patient has gained resistance and progressed"
-                )
+                if self.current_cell_count > 0.8 * detection_cell_count:
+                    print(
+                        f"Detected {self.current_cell_count} cells at timestep {self.time}; "
+                        f"patient has gained resistance and progressed"
+                    )
+                    exceeded_tumour_size = True
+                    break
+            if exceeded_tumour_size:
                 break
 
         print("Simulation complete")
@@ -189,7 +190,7 @@ class Phylogeny(object):
             growth_rates.append(growth_rate)
             if not self.is_cell:
                 (
-                    new_clones,
+                    mutating_division_count,
                     internal_division_count,
                     internal_death_count,
                 ) = agent.update_cell_count(
@@ -199,8 +200,7 @@ class Phylogeny(object):
                     len(self.parent_ids),
                     self.turnover,
                 )
-                division_count += internal_division_count
-                division_count += len(new_clones)
+                division_count += internal_division_count + mutating_division_count
                 death_count += internal_death_count
                 # self.agents.extend(new_clones)
                 # self.parent_ids.extend([alive_id] * len(new_clones))
@@ -209,10 +209,11 @@ class Phylogeny(object):
                     self.alive_ids.remove(alive_id)
                     self.dead_agents.append(agent)
 
-                for i in range(new_clones):
-                    self.max_id += 1
+                for _ in range(mutating_division_count):
                     self.max_clone_id += 1
-                    new_agent = agent.copy(id=self.max_id, new_clone_id=self.max_clone_id)
+                    new_agent = agent.copy(
+                        new_id=self.next_id, new_clone_id=self.max_clone_id
+                    )
                     new_agent.mutate()
                     new_agent.n_cells = 1
 
@@ -228,8 +229,6 @@ class Phylogeny(object):
                 elif agent.divides(self.randomiser, growth_rate, self.turnover):
                     mutate = self.randomiser.random() < self.mutations_per_division
                     division_count += 1
-                    self.max_cell_id += 1
-                    self.max_id += 1
 
                     if mutate:
                         self.max_clone_id += 1
@@ -238,7 +237,7 @@ class Phylogeny(object):
                         # Same clone as parent since no mutation
                         new_clone_id = agent.clone_id
 
-                    new_agent = agent.copy(id=self.max_id, new_clone_id=new_clone_id)
+                    new_agent = agent.copy(new_id=self.next_id, new_clone_id=new_clone_id)
                     if mutate:
                         new_agent.mutate()
 
