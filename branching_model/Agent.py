@@ -328,11 +328,10 @@ class Agent(object):
     ) -> bool:
         """
         randomly decide if the cell dies
-        turnover (between 0 and baseline_growth_rate) is the probability of death
+        turnover (between 0 and baseline_growth_rate) is added to each of the growth and death rates
         """
-        if growth_rate > turnover:
-            return False
-        if randomiser.uniform() < turnover - growth_rate:
+        death_rate = turnover + max(0, -growth_rate)
+        if randomiser.uniform() < death_rate:
             return True
         return False
 
@@ -342,9 +341,8 @@ class Agent(object):
         """
         randomly decide if the cell divides
         """
-        if growth_rate < -turnover:
-            return False
-        if randomiser.random() < turnover + growth_rate:
+        division_rate = turnover + max(0, growth_rate)
+        if randomiser.uniform() < division_rate:
             return True
         return False
 
@@ -362,22 +360,13 @@ class Agent(object):
         """
         assert self.status == "clone"
         new_clones = []  # any divisions that have a mutation result in a new clone
-        division_count = (
-            0
-            if growth_rate < -turnover
-            else randomiser.binomial(self.n_cells, growth_rate + turnover)
+        division_count = randomiser.binomial(
+            self.n_cells, turnover + max(0, growth_rate)
         )
         mutating_division_count = randomiser.binomial(
             division_count, mutations_per_division
         )
-        death_count = (
-            0
-            if growth_rate > turnover
-            else randomiser.binomial(
-                self.n_cells + division_count - mutating_division_count,
-                turnover - growth_rate,
-            )
-        )
+        death_count = randomiser.binomial(self.n_cells, turnover + max(0, -growth_rate))
         self.n_cells += division_count - death_count - mutating_division_count
         for i in range(mutating_division_count):
             new_clones.append(self.copy_mutated(randomiser, next_id + i))
