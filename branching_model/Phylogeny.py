@@ -37,7 +37,7 @@ class Phylogeny(object):
         # self.max_id = 0
         self.max_clone_id = 0
         self.live_agent_recorder = Recorder()
-        # self.dead_agent_recorder = Recorder()
+        self.dead_agent_recorder = Recorder()
 
         first_agent = Agent(
             is_cell=is_cell,
@@ -161,7 +161,7 @@ class Phylogeny(object):
 
         print("Simulation complete")
         self.live_agent_recorder.write_csv(dst_dir="logs", prefix="live")
-        # self.dead_agent_recorder.write_csv(dst_dir="logs", prefix="dead")
+        self.dead_agent_recorder.write_csv(dst_dir="logs", prefix="dead")
 
     def advance_one_timestep(self, treatment: int | None):
         doses = get_doses_from_treatment(treatment, self.number_of_treatments)
@@ -245,8 +245,8 @@ class Phylogeny(object):
                     self.parent_ids.append(alive_id)
                     self.alive_ids.append(new_agent.id)
 
-        # if self.time % RECORD_FREQ == 0 and len(self.dead_agents) > 0:
-            # self.dead_agent_recorder.record_time_pt(self.dead_agents, self.time, doses)
+        if self.time % RECORD_FREQ == 0 and len(self.dead_agents) > 0:
+            self.dead_agent_recorder.record_time_pt(self.dead_agents, self.time, doses)
 
         if self.time % 10 == 0:
             print(f"growth rates: {np.mean(growth_rates)} ± {np.std(growth_rates)}")
