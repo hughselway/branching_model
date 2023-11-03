@@ -360,13 +360,12 @@ class Agent(object):
         mutations_per_division: float,
         next_id: int,
         turnover: float = 0.0,
-    ) -> tuple[list["Agent"], int, int]:
+    ) -> tuple[int, int, int]:
         """
         update number of cells according to current fitness
         returns list of new clones resulting from mutations (if any)
         """
         assert self.status == "clone"
-        new_clones = []  # any divisions that have a mutation result in a new clone
         division_count = randomiser.binomial(
             self.n_cells, turnover + max(0, growth_rate)
         )

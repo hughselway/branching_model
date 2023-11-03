@@ -67,7 +67,7 @@ class Recorder(object):
 
         # No time to figure out why clones end up in the same clone list multiple times :(
         filtered_clone_clusters = {idx: set(clone_clusters[idx]) for idx in clone_clusters}
-        mutation_sizes = {idx: sum([1 if a.status == CELL_STR else a.num_cells for a in filtered_clone_clusters[idx]]) for idx in mutant_ids}
+        mutation_sizes = {idx: sum([1 if a.status == CELL_STR else a.n_cells for a in filtered_clone_clusters[idx]]) for idx in mutant_ids}
         phenotypes = {idx: np.vstack([a.phenotype.detach().numpy() for a in filtered_clone_clusters[idx]]).mean(axis=0)  for idx in mutant_ids}
         n_pheno = len(phenotypes[0])
         phenotype_cols = ["S", *[f"R{i}" for i in range(1, n_pheno)]]

@@ -9,6 +9,7 @@ from branching_model.Recorder import Recorder
 
 RECORD_FREQ = 1  # Record interval
 
+
 class Phylogeny(object):
     def __init__(
         self,
@@ -26,7 +27,6 @@ class Phylogeny(object):
         number_of_treatments: int = 2,
         turnover: float = 0.0,
     ):
-
         self.is_cell = is_cell
         self.learning_rate = learning_rate
         self.optimizer_cls = optimizer_cls
@@ -34,17 +34,15 @@ class Phylogeny(object):
         self.model_params = model_params
 
         self.time = 0
-        self.max_id = 0
+        # self.max_id = 0
         self.max_clone_id = 0
-        # self.max_cell_id = 0
         self.live_agent_recorder = Recorder()
-        self.dead_agent_recorder = Recorder()
+        # self.dead_agent_recorder = Recorder()
 
         first_agent = Agent(
             is_cell=is_cell,
-            id=self.max_id,
+            id=0,
             clone_id=self.max_clone_id,
-            cell_id=self.max_cell_id,
             learning_rate=learning_rate,
             optimizer_cls=optimizer_cls,
             activation_fxn=activation_fxn,
@@ -163,7 +161,7 @@ class Phylogeny(object):
 
         print("Simulation complete")
         self.live_agent_recorder.write_csv(dst_dir="logs", prefix="live")
-        self.dead_agent_recorder.write_csv(dst_dir="logs", prefix="dead")
+        # self.dead_agent_recorder.write_csv(dst_dir="logs", prefix="dead")
 
     def advance_one_timestep(self, treatment: int | None):
         doses = get_doses_from_treatment(treatment, self.number_of_treatments)
@@ -192,7 +190,7 @@ class Phylogeny(object):
             growth_rates.append(growth_rate)
             if not self.is_cell:
                 (
-                    new_clones,
+                    mutating_division_count,
                     internal_division_count,
                     internal_death_count,
                 ) = agent.update_cell_count(
@@ -202,8 +200,7 @@ class Phylogeny(object):
                     len(self.parent_ids),
                     self.turnover,
                 )
-                division_count += internal_division_count
-                division_count += len(new_clones)
+                division_count += internal_division_count + mutating_division_count
                 death_count += internal_death_count
                 # self.agents.extend(new_clones)
                 # self.parent_ids.extend([alive_id] * len(new_clones))
@@ -212,10 +209,11 @@ class Phylogeny(object):
                     self.alive_ids.remove(alive_id)
                     self.dead_agents.append(agent)
 
-                for i in range(new_clones):
-                    self.max_id += 1
+                for _ in range(mutating_division_count):
                     self.max_clone_id += 1
-                    new_agent = agent.copy(id=self.max_id, new_clone_id=self.max_clone_id)
+                    new_agent = agent.copy(
+                        new_id=self.next_id, new_clone_id=self.max_clone_id
+                    )
                     new_agent.mutate()
                     new_agent.n_cells = 1
 
@@ -231,8 +229,6 @@ class Phylogeny(object):
                 elif agent.divides(self.randomiser, growth_rate, self.turnover):
                     mutate = self.randomiser.random() < self.mutations_per_division
                     division_count += 1
-                    self.max_cell_id += 1
-                    self.max_id += 1
 
                     if mutate:
                         self.max_clone_id += 1
@@ -241,7 +237,7 @@ class Phylogeny(object):
                         # Same clone as parent since no mutation
                         new_clone_id = agent.clone_id
 
-                    new_agent = agent.copy(id=self.max_id, new_clone_id=new_clone_id)
+                    new_agent = agent.copy(new_id=self.next_id, new_clone_id=new_clone_id)
                     if mutate:
                         new_agent.mutate()
 
@@ -249,8 +245,8 @@ class Phylogeny(object):
                     self.parent_ids.append(alive_id)
                     self.alive_ids.append(new_agent.id)
 
-        if self.time % RECORD_FREQ == 0 and len(self.dead_agents) > 0:
-            self.dead_agent_recorder.record_time_pt(self.dead_agents, self.time, doses)
+        # if self.time % RECORD_FREQ == 0 and len(self.dead_agents) > 0:
+            # self.dead_agent_recorder.record_time_pt(self.dead_agents, self.time, doses)
 
         if self.time % 10 == 0:
             print(f"growth rates: {np.mean(growth_rates)} ± {np.std(growth_rates)}")
