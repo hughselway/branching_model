@@ -12,6 +12,8 @@ numpy = "^1.26.1"
 setuptools = "^68.2.2"
 seaborn = "^0.13.0"
 scipy = "^1.11.3"
+opencv-python = "^4.8.1.78"
+celluloid = "^0.2.0"
 
 
 [tool.poetry.group.dev.dependencies]
