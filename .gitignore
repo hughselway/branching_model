@@ -3,3 +3,7 @@ logs/
 .mypy_cache/
 
 tests/.DS_Store
+
+tests/csv_files/.DS_Store
+
+branching_model/debug.py
