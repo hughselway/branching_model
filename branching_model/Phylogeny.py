@@ -118,6 +118,7 @@ class Phylogeny(object):
         while cycle_count < max_cycles:
             cycle_count += 1
             print(f"Cycle {cycle_count}")
+            exceeded_tumour_size = False
             for treatment in range(self.number_of_treatments):
                 # for i in range(n_timesteps_treatment):
                 timestep_this_treatment = 0
@@ -127,17 +128,16 @@ class Phylogeny(object):
                     self.advance_one_timestep(treatment=treatment)
                     if len(self.alive_ids) == 0:
                         print("All cells died; simulation complete")
-                        return
-                    if len(self.alive_ids) > 4 * detection_cell_count:
-                        print(
-                            f"Detected {len(self.alive_ids)} cells at timestep {self.time + i}; "
-                            f"patient has gained resistance and progressed"
-                        )
+                        with open("logs/cycle_times.csv", "a", encoding="utf-8") as f:
+                            f.write(
+                                f"{cycle_count},{treatment},{timestep_this_treatment}\n"
+                            )
                         return
                     if timestep_this_treatment % measure_tumour_every_n_timesteps == 0:
                         if (
                             last_tumour_measurement is not None
-                            and self.current_cell_count > last_tumour_measurement
+                            and self.current_cell_count > last_tumour_measurement * 0.9
+                            and timestep_this_treatment > 2
                         ):
                             # Tumour has grown; move to next treatment
                             break
@@ -151,11 +151,14 @@ class Phylogeny(object):
                 )
                 with open("logs/cycle_times.csv", "a", encoding="utf-8") as f:
                     f.write(f"{cycle_count},{treatment},{timestep_this_treatment}\n")
-            if len(self.alive_ids) > 4 * detection_cell_count:
-                print(
-                    f"Detected {len(self.alive_ids)} cells at timestep {self.time}; "
-                    f"patient has gained resistance and progressed"
-                )
+                if self.current_cell_count > 0.8 * detection_cell_count:
+                    print(
+                        f"Detected {self.current_cell_count} cells at timestep {self.time}; "
+                        f"patient has gained resistance and progressed"
+                    )
+                    exceeded_tumour_size = True
+                    break
+            if exceeded_tumour_size:
                 break
 
         print("Simulation complete")
