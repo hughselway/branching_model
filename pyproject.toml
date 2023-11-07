@@ -6,12 +6,19 @@ authors = ["Chandler Gatenbee <chandlergatenbee@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.13"
+python = ">=3.10,<3.12"
 torch = "^2.1.0"
 numpy = "^1.26.1"
 setuptools = "^68.2.2"
 seaborn = "^0.13.0"
 scipy = "^1.11.3"
+<<<<<<< HEAD
+opencv-python = "^4.8.1.78"
+celluloid = "^0.2.0"
+=======
+colour-science = "^0.4.3"
+scikit-image = "^0.22.0"
+>>>>>>> 5e67b0eadcf54b55970bbab69b38ba376289b85d
 
 
 [tool.poetry.group.dev.dependencies]
